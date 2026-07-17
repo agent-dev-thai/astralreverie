@@ -32,8 +32,11 @@ Key implementation files:
 - `gacha-core.js`: seeded RNG, rarity rates, soft/hard pity, and SR+ guarantee
 - `strings.js`: player-visible copy, item pool, rarity metadata, and packages
 - `logic.js`: the single-player deployment stub
+- `pull-share.js`: versioned, allowlisted serialization for read-only shared pull summaries
+- `pull-og.js`: bounded Sharp renderer for exact-card 1200×630 single and ×10 social previews
 - `assets/generated/`: final generated artwork, including unique art for all 32 cards
 - `assets/generated/optimized/`: responsive WebP hero assets used by the initial page load
+- `assets/generated/share/`: favicon, app logo, and the generic 1200×630 launch preview
 - `cinematic-media.js`: isolated portrait/landscape video contract with per-treatment fallbacks
 - `cinematic-sfx.js`: ElevenLabs buildup/reveal sample loader with cancellation and oscillator fallback
 - `assets/audio/house-beyond-stars-loop.m4a`: normalized, looped production background music
@@ -43,10 +46,15 @@ Key implementation files:
 - `tools/process_card_art.py`: repeatable PNG-to-WebP card optimization and contact-sheet generation
 - `tools/process_rarity_warps.py`: repeatable rarity-warp optimization and contact-sheet generation
 - `tools/process_runtime_images.py`: repeatable responsive hero and rarity-chip WebP generation
+- `tools/process_share_assets.py`: deterministic logo, favicon, and social-preview generation
 - `tools/generate_elevenlabs_sfx.mjs` and `tools/process_elevenlabs_sfx.mjs`: reproducible SFX generation and delivery mix
 - `tools/qa_playwright.py`: desktop/mobile interaction and screenshot QA
 
-The Railway server Brotli/gzip-compresses text and fonts, supports conditional asset caching, and honors byte ranges for cinematic/audio startup. Large fallback posters and ElevenLabs samples are deferred until after the critical page load; slow or data-saver connections stay on the on-demand CSS/oscillator fallbacks.
+The Railway server Brotli/gzip-compresses text and fonts, supports conditional asset caching, and honors byte ranges for cinematic/audio startup. Large fallback posters and ElevenLabs samples are deferred until after the critical page load; slow or data-saver connections stay on the on-demand CSS/oscillator fallbacks. Runtime card illustrations are bounded WebPs, and each resolved pull is decoded during its buildup so the reveal cannot normally outrun its artwork.
+
+Facebook sharing from the header uses the clean homepage URL. **Share card** on a reveal shares the current card, while **Share ×10 pull** shares the full batch. Both use a compact `v1` token containing only opened card IDs, and recipients land on a read-only copy of that exact result. Valid result links receive a server-rendered Open Graph JPEG containing the exact card or all ten cards; SSR/UR results reuse the generated premium crest artwork. The generic homepage keeps the normal launch preview. The separate **Auto-open ×10** control runs one ten-pull, advances through each card hands-free, and stops on the summary; normal pull buttons retain manual reveal behavior.
+
+New sessions start with 32,000 fictional shards. The top-up sheet remains a free simulation with deliberately oversized 1,600–80,000 shard refills; there is no checkout, account, payment API, or item of value.
 
 The original design-handoff documentation and prototype files are retained below and remain unchanged reference material.
 

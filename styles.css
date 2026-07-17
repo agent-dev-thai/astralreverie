@@ -308,7 +308,8 @@ button:active {
 }
 
 .icon-button,
-.shard-button {
+.shard-button,
+.facebook-share-button {
   min-height: 2.5rem;
   border: 1px solid var(--line-soft);
   background: color-mix(in oklch, var(--ink-800) 64%, transparent);
@@ -317,7 +318,8 @@ button:active {
 }
 
 .icon-button:hover,
-.shard-button:hover {
+.shard-button:hover,
+.facebook-share-button:hover {
   border-color: var(--line-gold);
   background: color-mix(in oklch, var(--ink-700) 70%, transparent);
 }
@@ -332,6 +334,37 @@ button:active {
   display: inline-block;
   font-size: 1rem;
   transform: rotate(10deg);
+}
+
+.facebook-share-button {
+  min-height: 2.5rem;
+  padding: 0 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-color: color-mix(in oklch, #1877f2 62%, var(--line-soft));
+  border-radius: 2rem;
+  color: var(--paper-100);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.facebook-share-button:hover {
+  border-color: #3b8df5;
+  background: color-mix(in oklch, #1877f2 24%, var(--ink-800));
+}
+
+.facebook-glyph {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: inline-grid;
+  place-items: end center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #1877f2;
+  color: white;
+  font: 700 1rem/1 Arial, sans-serif;
 }
 
 .shard-button {
@@ -779,6 +812,25 @@ button:active {
   gap: 0.35rem;
   font-size: 0.65rem;
   font-weight: 600;
+}
+
+.pull-button-auto {
+  grid-column: 1 / -1;
+  min-height: 3.35rem;
+  flex-direction: row;
+  border-color: color-mix(in oklch, var(--blue-400) 52%, var(--line-soft));
+  background:
+    linear-gradient(110deg, color-mix(in oklch, var(--blue-400) 12%, transparent), color-mix(in oklch, var(--violet-400) 12%, transparent)),
+    color-mix(in oklch, var(--ink-800) 72%, transparent);
+}
+
+.pull-button-auto:hover {
+  border-color: var(--blue-400);
+  filter: brightness(1.12);
+}
+
+.pull-button-auto small {
+  color: var(--paper-400);
 }
 
 .pull-button-single {
@@ -1612,6 +1664,8 @@ kbd {
   top: max(var(--space-lg), env(safe-area-inset-top));
   right: var(--space-lg);
   z-index: 3;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--line-soft);
   background: color-mix(in oklch, var(--ink-950) 72%, transparent);
@@ -1634,6 +1688,28 @@ kbd {
   cursor: pointer;
   perspective: 70rem;
   isolation: isolate;
+}
+
+.reveal-share {
+  position: absolute;
+  z-index: 5;
+  top: max(var(--space-lg), env(safe-area-inset-top));
+  left: var(--space-lg);
+  min-height: 2.75rem;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid #3b8df5;
+  background: color-mix(in oklch, #1877f2 28%, var(--ink-950));
+  color: var(--paper-100);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.reveal-share::before {
+  margin-right: 0.45rem;
+  content: "f";
+  font: 700 1rem/1 Arial, sans-serif;
 }
 
 .cinematic-reveal::before {
@@ -2153,6 +2229,11 @@ kbd {
   gap: var(--space-sm);
 }
 
+.cinematic-summary.is-single .summary-grid {
+  width: min(100%, 14rem);
+  grid-template-columns: 1fr;
+}
+
 .summary-card {
   position: relative;
   min-width: 0;
@@ -2291,6 +2372,20 @@ kbd {
 
 .summary-collect {
   background: var(--surface);
+}
+
+.summary-share {
+  grid-column: 1 / -1;
+  border-color: #3b8df5 !important;
+  background: color-mix(in oklch, #1877f2 72%, var(--ink-800));
+  color: white;
+}
+
+.summary-share::before {
+  content: "f";
+  display: inline-block;
+  margin-right: 0.5rem;
+  font: 700 1rem/1 Arial, sans-serif;
 }
 
 .summary-again {
@@ -2621,13 +2716,24 @@ kbd {
   }
 
   .icon-button {
-    width: 2.25rem;
-    min-height: 2.25rem;
+    width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .facebook-share-button {
+    width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .share-label {
+    display: none;
   }
 
   .shard-button {
     min-width: 5.7rem;
-    min-height: 2.25rem;
+    min-height: 2.75rem;
     padding-inline: var(--space-xs);
     font-size: 0.74rem;
   }
@@ -2716,7 +2822,33 @@ kbd {
 
   .console-heading { order: 1; }
   .pity-block { order: 2; }
-  .pull-actions { order: 3; }
+  .pull-actions {
+    order: 3;
+    grid-template-columns: 0.72fr 1fr 1.18fr;
+  }
+
+  .pull-button {
+    min-height: 4.8rem;
+    padding-inline: var(--space-xs);
+  }
+
+  .pull-button span {
+    font-size: 0.68rem;
+  }
+
+  .pull-button small {
+    font-size: 0.56rem;
+  }
+
+  .pull-button-auto {
+    grid-column: auto;
+    flex-direction: column;
+  }
+
+  .pull-button-auto small {
+    display: none;
+  }
+
   .fake-spend-line { order: 4; }
   .odds-strip { order: 5; }
   #snark-line { order: 6; }

@@ -1,12 +1,25 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { constants as zlibConstants, createBrotliCompress, createGzip } from "node:zlib";
+import {
+  brotliCompressSync,
+  constants as zlibConstants,
+  createBrotliCompress,
+  createGzip,
+  gzipSync,
+} from "node:zlib";
+
+import { decodePullShareToken } from "./pull-share.js";
+import { createPullOgRenderer, PULL_OG_PATH } from "./pull-og.js";
+import { ITEMS } from "./strings.js";
 
 const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ASSETS_DIR = resolve(ROOT_DIR, "assets");
+const INDEX_PATH = resolve(ROOT_DIR, "index.html");
+const STATIC_OG_PATH = resolve(ASSETS_DIR, "generated/share/astral-reverie-og.jpg");
+const pullOgRenderer = createPullOgRenderer();
 const PUBLIC_ROOT_FILES = new Set([
   "app.js",
   "cinematic-media.js",
@@ -14,20 +27,23 @@ const PUBLIC_ROOT_FILES = new Set([
   "gacha-core.js",
   "index.html",
   "logic.js",
+  "pull-share.js",
   "strings.js",
   "styles.css",
 ]);
-const PUBLIC_ASSET_EXTENSIONS = new Set([".js", ".json", ".m4a", ".mp4", ".png", ".ttf", ".webp"]);
+const PUBLIC_ASSET_EXTENSIONS = new Set([".jpg", ".js", ".json", ".m4a", ".mp4", ".png", ".ttf", ".webmanifest", ".webp"]);
 const COMPRESSIBLE_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".ttf"]);
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
+  [".jpg", "image/jpeg"],
   [".json", "application/json; charset=utf-8"],
   [".m4a", "audio/mp4"],
   [".mp4", "video/mp4"],
   [".png", "image/png"],
   [".ttf", "font/ttf"],
+  [".webmanifest", "application/manifest+json; charset=utf-8"],
   [".webp", "image/webp"],
 ]);
 
@@ -93,6 +109,117 @@ function preferredEncoding(request, extension, hasRange) {
   return null;
 }
 
+function firstForwardedValue(value) {
+  return Array.isArray(value) ? value[0] : String(value || "").split(",")[0].trim();
+}
+
+function publicOrigin(request) {
+  const forwardedProtocol = firstForwardedValue(request.headers["x-forwarded-proto"]);
+  const protocol = forwardedProtocol === "https" ? "https" : "http";
+  const host = firstForwardedValue(request.headers["x-forwarded-host"]) || request.headers.host || "localhost";
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return "http://localhost";
+  }
+}
+
+function requestedSharedPull(request, origin) {
+  const requestedUrl = new URL(request.url || "/", origin);
+  const pullToken = requestedUrl.searchParams.get("pull");
+  const results = decodePullShareToken(pullToken, ITEMS);
+  return results ? { token: pullToken, results } : undefined;
+}
+
+function publicPageUrl(origin, sharedPull) {
+  const pageUrl = new URL("/", origin);
+  if (sharedPull) pageUrl.searchParams.set("pull", sharedPull.token);
+  return pageUrl.href;
+}
+
+function publicOgImageUrl(origin, sharedPull) {
+  if (!sharedPull) return `${origin}/assets/generated/share/astral-reverie-og.jpg`;
+  const imageUrl = new URL(PULL_OG_PATH, origin);
+  imageUrl.searchParams.set("pull", sharedPull.token);
+  return imageUrl.href;
+}
+
+function escapeHtmlAttribute(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function publicOgImageAlt(sharedPull) {
+  if (!sharedPull) return "Astral Reverie cinematic gacha simulator featuring Seren beside an eclipse gate.";
+  const names = sharedPull.results.map(item => item.name);
+  const visibleNames = names.slice(0, 4).join(", ");
+  const remainder = names.length > 4 ? `, and ${names.length - 4} more` : "";
+  return `Astral Reverie shared pull showing ${visibleNames}${remainder}.`;
+}
+
+async function sendIndex(request, response, method) {
+  const template = await readFile(INDEX_PATH, "utf8");
+  const origin = publicOrigin(request);
+  const sharedPull = requestedSharedPull(request, origin);
+  const rendered = Buffer.from(template
+    .replaceAll("__PUBLIC_ORIGIN__", origin)
+    .replaceAll("__PUBLIC_PAGE_URL__", publicPageUrl(origin, sharedPull))
+    .replaceAll("__PUBLIC_OG_IMAGE__", publicOgImageUrl(origin, sharedPull))
+    .replaceAll("__PUBLIC_OG_IMAGE_ALT__", escapeHtmlAttribute(publicOgImageAlt(sharedPull))));
+  const encoding = preferredEncoding(request, ".html", false);
+  const payload = encoding === "br"
+    ? brotliCompressSync(rendered, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } })
+    : encoding === "gzip" ? gzipSync(rendered, { level: 6 }) : rendered;
+  response.writeHead(200, {
+    "Content-Length": payload.byteLength,
+    "Content-Type": CONTENT_TYPES.get(".html"),
+    "Cache-Control": "no-cache",
+    ...(encoding ? { "Content-Encoding": encoding } : {}),
+    Vary: "Accept-Encoding, X-Forwarded-Host, X-Forwarded-Proto",
+  });
+  response.end(method === "HEAD" ? undefined : payload);
+}
+
+async function sendPullOg(request, response, method, requestUrl) {
+  const token = requestUrl.searchParams.get("pull");
+  const results = decodePullShareToken(token, ITEMS);
+  if (!results) {
+    sendText(response, 404, "Shared pull not found\n", method);
+    return;
+  }
+
+  const etag = `"pull-og-v1-${token}"`;
+  const baseHeaders = {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    ETag: etag,
+  };
+  if (etagMatches(request.headers["if-none-match"], etag)) {
+    response.writeHead(304, baseHeaders);
+    response.end();
+    return;
+  }
+
+  let payload;
+  let cacheControl = baseHeaders["Cache-Control"];
+  try {
+    payload = await pullOgRenderer.render(token, results);
+  } catch (error) {
+    console.error("Pull OG rendering failed", error);
+    payload = await readFile(STATIC_OG_PATH);
+    cacheControl = "public, max-age=300";
+  }
+  response.writeHead(200, {
+    ...baseHeaders,
+    "Cache-Control": cacheControl,
+    "Content-Length": payload.byteLength,
+  });
+  response.end(method === "HEAD" ? undefined : payload);
+}
+
 function resolvePublicFile(pathname) {
   let decodedPath;
   try {
@@ -132,6 +259,10 @@ async function handleRequest(request, response) {
   }
 
   const url = new URL(request.url || "/", "http://localhost");
+  if (url.pathname === PULL_OG_PATH) {
+    await sendPullOg(request, response, method, url);
+    return;
+  }
   if (url.pathname === "/health") {
     const payload = Buffer.from(JSON.stringify({ status: "ok" }));
     response.writeHead(200, {
@@ -146,6 +277,11 @@ async function handleRequest(request, response) {
   const filePath = resolvePublicFile(url.pathname);
   if (!filePath) {
     sendText(response, 404, "Not found\n", method);
+    return;
+  }
+
+  if (filePath === INDEX_PATH) {
+    await sendIndex(request, response, method);
     return;
   }
 

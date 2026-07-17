@@ -1,0 +1,30 @@
+{
+  "name": "Astral Reverie",
+  "short_name": "Astral",
+  "description": "A consequence-free cinematic gacha simulator.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#120d1a",
+  "theme_color": "#120d1a",
+  "icons": [
+    {
+      "src": "/assets/generated/share/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/share/astral-reverie-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/share/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

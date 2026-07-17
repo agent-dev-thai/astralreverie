@@ -69,6 +69,18 @@ def main() -> None:
         86,
     )
     resize_to_width(
+        GENERATED / "aurelia-ssr.png",
+        OPTIMIZED / "aurelia-ssr-512.webp",
+        512,
+        86,
+    )
+    resize_to_width(
+        GENERATED / "cyra-sr.png",
+        OPTIMIZED / "cyra-sr-512.webp",
+        512,
+        86,
+    )
+    resize_to_width(
         GENERATED / "ui/rarity-chip-ssr.png",
         GENERATED / "ui/rarity-chip-ssr.webp",
         384,

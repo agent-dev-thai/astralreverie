@@ -22,12 +22,78 @@ after(async () => {
 });
 
 test("serves the app shell", async () => {
-  const response = await fetch(`${baseUrl}/`);
+  const response = await fetch(`${baseUrl}/`, { headers: { "Accept-Encoding": "br" } });
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type"), /^text\/html/);
+  assert.equal(response.headers.get("content-encoding"), "br");
   const html = await response.text();
   assert.match(html, /id="app-shell"/);
   assert.match(html, /<script type="module" src="\.\/app\.js"><\/script>/);
+});
+
+test("renders absolute social metadata from the deployment origin", async () => {
+  const response = await fetch(`${baseUrl}/`, {
+    headers: {
+      "X-Forwarded-Host": "gacha.example",
+      "X-Forwarded-Proto": "https",
+    },
+  });
+  const html = await response.text();
+  assert.match(html, /property="og:url" content="https:\/\/gacha\.example\/"/);
+  assert.match(html, /property="og:image" content="https:\/\/gacha\.example\/assets\/generated\/share\/astral-reverie-og\.jpg"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /rel="manifest" href="\.\/assets\/generated\/share\/site\.webmanifest"/);
+  assert.doesNotMatch(html, /__PUBLIC_(?:ORIGIN|PAGE_URL)__|[?&]auto=/);
+
+  const sharedResponse = await fetch(`${baseUrl}/?pull=v1.seren.rock&auto=1`, {
+    headers: {
+      "X-Forwarded-Host": "gacha.example",
+      "X-Forwarded-Proto": "https",
+    },
+  });
+  const sharedHtml = await sharedResponse.text();
+  assert.match(sharedHtml, /property="og:url" content="https:\/\/gacha\.example\/\?pull=v1\.seren\.rock"/);
+  assert.match(sharedHtml, /property="og:image" content="https:\/\/gacha\.example\/og\/pull-v1\.jpg\?pull=v1\.seren\.rock"/);
+  assert.match(sharedHtml, /property="og:image:alt" content="Astral Reverie shared pull showing Seren, Suspicious Rock\."/);
+  assert.match(sharedHtml, /rel="canonical" href="https:\/\/gacha\.example\/"/);
+  assert.doesNotMatch(sharedHtml, /[?&]auto=/);
+
+  const invalidResponse = await fetch(`${baseUrl}/?pull=v1.unknown`, {
+    headers: {
+      "X-Forwarded-Host": "gacha.example",
+      "X-Forwarded-Proto": "https",
+    },
+  });
+  assert.match(await invalidResponse.text(), /property="og:url" content="https:\/\/gacha\.example\/"/);
+
+  const dynamicPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.seren.rock`);
+  assert.equal(dynamicPreview.status, 200);
+  assert.equal(dynamicPreview.headers.get("content-type"), "image/jpeg");
+  assert.match(dynamicPreview.headers.get("cache-control"), /immutable/);
+  assert.ok(Number(dynamicPreview.headers.get("content-length")) > 50000);
+  const dynamicEtag = dynamicPreview.headers.get("etag");
+  assert.ok(dynamicEtag);
+  const unchangedDynamicPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.seren.rock`, {
+    headers: { "If-None-Match": dynamicEtag },
+  });
+  assert.equal(unchangedDynamicPreview.status, 304);
+
+  const missingPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.unknown`);
+  assert.equal(missingPreview.status, 404);
+
+  const preview = await fetch(`${baseUrl}/assets/generated/share/astral-reverie-og.jpg`, { method: "HEAD" });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.headers.get("content-type"), "image/jpeg");
+  assert.ok(Number(preview.headers.get("content-length")) > 0);
+
+  const favicon = await fetch(`${baseUrl}/assets/generated/share/favicon-32.png`, { method: "HEAD" });
+  assert.equal(favicon.status, 200);
+  assert.equal(favicon.headers.get("content-type"), "image/png");
+
+  const manifest = await fetch(`${baseUrl}/assets/generated/share/site.webmanifest`);
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers.get("content-type"), /^application\/manifest\+json/);
+  assert.equal((await manifest.json()).name, "Astral Reverie");
 });
 
 test("reports deployment health", async () => {
@@ -67,6 +133,10 @@ test("serves the vendored motion runtime, production music, and cinematics", asy
   assert.equal(sfx.status, 200);
   assert.equal(sfx.headers.get("content-type"), "audio/mp4");
   assert.ok(Number(sfx.headers.get("content-length")) > 0);
+
+  const pullShare = await fetch(`${baseUrl}/pull-share.js`);
+  assert.equal(pullShare.status, 200);
+  assert.match(await pullShare.text(), /PULL_SHARE_VERSION/);
 });
 
 test("supports compressed text responses, cache validation, and media ranges", async () => {

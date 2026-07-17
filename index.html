@@ -1,9 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Astral Reverie — a consequence-free gacha simulator</title>
   <meta name="theme-color" content="#120d1a">
+  <meta name="application-name" content="Astral Reverie">
+  <meta name="apple-mobile-web-app-title" content="Astral Reverie">
+  <meta name="description" content="A consequence-free cinematic gacha simulator with impossible rarity effects and zero real money.">
+  <meta property="og:title" content="Astral Reverie — Trace Your Luck">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="__PUBLIC_PAGE_URL__">
+  <meta property="og:site_name" content="Astral Reverie">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:description" content="Cinematic pulls. Impossible luck. Zero real money.">
+  <meta property="og:image" content="__PUBLIC_OG_IMAGE__">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="__PUBLIC_OG_IMAGE_ALT__">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Astral Reverie — Trace Your Luck">
+  <meta name="twitter:description" content="Cinematic pulls. Impossible luck. Zero real money.">
+  <meta name="twitter:image" content="__PUBLIC_OG_IMAGE__">
+  <meta name="twitter:image:alt" content="__PUBLIC_OG_IMAGE_ALT__">
+  <link rel="canonical" href="__PUBLIC_ORIGIN__/">
+  <link rel="manifest" href="./assets/generated/share/site.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/generated/share/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/generated/share/apple-touch-icon.png">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -29,6 +53,10 @@
       </nav>
 
       <div class="header-actions">
+        <button class="facebook-share-button" type="button" data-action="share-facebook" data-i18n-aria="shareFacebookAria">
+          <span class="facebook-glyph" aria-hidden="true">f</span>
+          <span class="share-label" data-i18n="shareFacebook"></span>
+        </button>
         <button class="icon-button" type="button" data-action="mute" data-i18n-aria="muteOn">
           <span class="sound-glyph" aria-hidden="true">◖</span>
         </button>
@@ -140,6 +168,10 @@
                 <span data-i18n="pullTen"></span>
                 <small><i class="mini-gem dark" aria-hidden="true"></i><span data-i18n="pullTenCost"></span></small>
               </button>
+              <button class="pull-button pull-button-auto" type="button" data-action="auto-pull-ten">
+                <span data-i18n="autoOpenTen"></span>
+                <small data-i18n="autoOpenHint"></small>
+              </button>
             </div>
 
             <div class="fake-spend-line">
@@ -207,7 +239,7 @@
     <p class="sheet-total"><span data-i18n="lifetimeSpend"></span> <strong id="sheet-spend">$0.00</strong></p>
   </aside>
 
-  <section class="cinematic" id="cinematic" aria-live="polite" hidden>
+  <section class="cinematic" id="cinematic" role="dialog" aria-modal="true" aria-label="Gacha reveal" aria-live="polite" tabindex="-1" hidden>
     <div class="cinematic-stage cinematic-buildup" id="cinematic-buildup" hidden>
       <img alt="" class="warp-backdrop" id="warp-backdrop" width="900" height="1600" decoding="async">
       <video class="warp-video" id="warp-video" muted playsinline preload="metadata" aria-hidden="true"></video>
@@ -227,6 +259,7 @@
       <span class="reveal-tier" id="reveal-tier" aria-hidden="true"></span>
       <div class="rarity-frame" id="rarity-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <span class="reveal-counter" id="reveal-counter"></span>
+      <button class="reveal-share" type="button" data-action="share-facebook" data-i18n="shareCard"></button>
       <span class="reveal-card" id="reveal-card"></span>
       <span class="tap-hint" data-i18n="tapContinue"></span>
       <button class="cinematic-skip reveal-all" type="button" data-action="reveal-all" data-i18n="revealAll"></button>
@@ -234,12 +267,13 @@
 
     <div class="cinematic-stage cinematic-summary" id="cinematic-summary" hidden>
       <div class="summary-header">
-        <div><p class="eyebrow" data-i18n="summaryKicker"></p><h2 data-i18n="summaryTitle"></h2></div>
+        <div><p class="eyebrow" id="summary-kicker" data-i18n="summaryKicker"></p><h2 data-i18n="summaryTitle"></h2></div>
         <p class="summary-grade" id="summary-grade"></p>
       </div>
       <div class="summary-grid" id="summary-grid"></div>
       <p class="summary-snark" id="summary-snark"></p>
       <div class="summary-actions">
+        <button type="button" class="summary-share" data-action="share-facebook" data-i18n="shareResult"></button>
         <button type="button" class="summary-collect" data-action="collect" data-i18n="collectLabel"></button>
         <button type="button" class="summary-again" data-action="pull-ten" data-i18n="againLabel"></button>
       </div>

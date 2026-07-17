@@ -1,5 +1,6 @@
 import { ITEMS, PACKAGES, PULL_FEEDBACK, RARITY, SNARK, STR } from "./strings.js";
-import { GACHA_CONFIG, normalizeSeed, pullBatch } from "./gacha-core.js";
+import { GACHA_CONFIG, normalizeSeed, pullBatch, RARITY_ORDER } from "./gacha-core.js";
+import { decodePullShareToken, encodePullShareToken } from "./pull-share.js";
 import {
   CINEMATIC_PRESENTATIONS,
   getCinematicPresentation,
@@ -14,6 +15,8 @@ import {
 
 const params = new URLSearchParams(location.search);
 const requestedSeed = params.get("seed");
+const requestedPullToken = params.get("pull");
+const sharedResults = decodePullShareToken(requestedPullToken, ITEMS);
 const devMode = params.has("dev");
 const reducedMotionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const motionApi = globalThis.Motion;
@@ -33,6 +36,22 @@ const TONE_DARK = {
   SSR: "oklch(24% 0.06 75)",
   UR: "oklch(23% 0.07 350)",
 };
+const PREMIUM_TIER_ART = Object.freeze({
+  SSR: "./assets/generated/ui/rarity-chip-ssr.webp",
+  UR: "./assets/generated/ui/rarity-chip-ur.webp",
+});
+const imageLoadCache = new Map();
+
+function removePullFromLocation() {
+  const url = new URL(location.href);
+  url.searchParams.delete("pull");
+  window.history.replaceState(null, "", url);
+}
+
+if (requestedPullToken && !sharedResults) removePullFromLocation();
+
+let sharedPullActive = Boolean(sharedResults);
+
 function freshSeed() {
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
@@ -58,7 +77,7 @@ function defaultState() {
   return {
     seed,
     rngState: seed,
-    gems: 3200,
+    gems: 32000,
     pity: 0,
     pitySR: 0,
     totalPulls: 0,
@@ -75,6 +94,7 @@ function defaultState() {
     revealIndex: 0,
     nearMiss: false,
     buildBest: "C",
+    autoReveal: false,
   };
 }
 
@@ -91,7 +111,19 @@ const state = Object.assign(defaultState(), saved, {
   revealIndex: 0,
   nearMiss: false,
   buildBest: "C",
+  autoReveal: false,
 });
+
+if (sharedResults) {
+  const best = sharedResults.reduce((winner, item) => (
+    RARITY_ORDER[item.rarity] > RARITY_ORDER[winner.rarity] ? item : winner
+  )).rarity;
+  Object.assign(state, {
+    phase: "summary",
+    results: sharedResults,
+    buildBest: best,
+  });
+}
 
 function presentedBuildRarity() {
   return getCinematicPresentation(state.buildBest, state.nearMiss).rarity;
@@ -103,6 +135,48 @@ function preloadRarityWarps() {
     const image = new Image();
     image.src = poster;
   });
+}
+
+function preloadImage(url, priority = "auto") {
+  if (!url) return Promise.resolve(true);
+  if (imageLoadCache.has(url)) return imageLoadCache.get(url);
+
+  const pending = new Promise(resolve => {
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = priority;
+    image.onload = async () => {
+      try {
+        await image.decode?.();
+      } catch {
+        // A completed image remains usable even when decode() is unsupported or rejects.
+      }
+      resolve(image.naturalWidth > 0);
+    };
+    image.onerror = () => resolve(false);
+    image.src = url;
+  });
+  imageLoadCache.set(url, pending);
+  void pending.then(loaded => {
+    if (!loaded) imageLoadCache.delete(url);
+  });
+  return pending;
+}
+
+function preloadPullArt(results) {
+  return results.map((item, index) => {
+    const urls = [item.art, PREMIUM_TIER_ART[item.rarity]].filter(Boolean);
+    return Promise.all(urls.map(url => preloadImage(url, index === 0 ? "high" : "auto")));
+  });
+}
+
+function waitForPullArt(promises, timeoutMs) {
+  if (!promises.length) return Promise.resolve();
+  let timer;
+  return Promise.race([
+    Promise.allSettled(promises),
+    new Promise(resolve => { timer = window.setTimeout(resolve, timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 function scheduleDeferredMediaPreloads() {
@@ -124,6 +198,7 @@ function scheduleDeferredMediaPreloads() {
 }
 
 const dom = {
+  appShell: document.querySelector("#app-shell"),
   headerGems: document.querySelector("#header-gems"),
   pityValue: document.querySelector("#pity-value"),
   pityLimit: document.querySelector("#pity-limit"),
@@ -157,8 +232,11 @@ const dom = {
   revealCard: document.querySelector("#reveal-card"),
   revealAll: document.querySelector(".reveal-all"),
   summaryGrid: document.querySelector("#summary-grid"),
+  summaryKicker: document.querySelector("#summary-kicker"),
   summaryGrade: document.querySelector("#summary-grade"),
   summarySnark: document.querySelector("#summary-snark"),
+  summaryShare: document.querySelector(".summary-share"),
+  summaryCollect: document.querySelector(".summary-collect"),
   toast: document.querySelector("#toast"),
   muteButton: document.querySelector('[data-action="mute"]'),
   soundGlyph: document.querySelector(".sound-glyph"),
@@ -171,6 +249,9 @@ const dom = {
 
 let toastTimer = 0;
 let buildupTimer = 0;
+let autoRevealTimer = 0;
+let pullArtPromises = [];
+let artTransitionPending = false;
 let resetArmedUntil = 0;
 let previousFocus = null;
 let audioContext = null;
@@ -187,7 +268,7 @@ let lastCinematicFrame = "";
 let sheetTransitionId = 0;
 
 function hydrateStrings() {
-  document.title = STR.metaTitle;
+  document.title = sharedPullActive ? STR.sharedMetaTitle : STR.metaTitle;
   document.querySelectorAll("[data-i18n]").forEach(element => {
     const value = STR[element.dataset.i18n];
     if (typeof value === "string") element.textContent = value;
@@ -265,7 +346,7 @@ function renderHeaderAndConsole() {
   dom.snarkLine.textContent = SNARK[state.totalPulls % SNARK.length];
   dom.fakeSpend.textContent = formatMoney(state.fakeSpendC);
   dom.sheetSpend.textContent = formatMoney(state.fakeSpendC);
-  dom.seedLabel.textContent = STR.seededLabel(state.seed);
+  dom.seedLabel.textContent = sharedPullActive ? STR.sharedFooterLabel : STR.seededLabel(state.seed);
   dom.muteButton.setAttribute("aria-label", state.muted ? STR.muteOff : STR.muteOn);
   dom.soundGlyph.textContent = state.muted ? "×" : "◖";
 }
@@ -396,6 +477,7 @@ function openTopup() {
   previousFocus = document.activeElement;
   dom.sheetScrim.hidden = false;
   dom.topupSheet.hidden = false;
+  dom.appShell.inert = true;
   document.body.classList.add("sheet-open");
   if (canUseMotion()) {
     const mobile = matchMedia("(max-width: 720px)").matches;
@@ -416,6 +498,7 @@ function closeTopup() {
     dom.sheetScrim.hidden = true;
     dom.topupSheet.hidden = true;
     document.body.classList.remove("sheet-open");
+    dom.appShell.inert = !dom.cinematic.hidden;
     previousFocus?.focus?.();
   };
   if (!canUseMotion()) {
@@ -677,7 +760,22 @@ function animateSummaryResults() {
   ], { defaultTransition: { ease: motionEaseOut } });
 }
 
-function startPull(count) {
+function clearAutoRevealTimer() {
+  clearTimeout(autoRevealTimer);
+  autoRevealTimer = 0;
+}
+
+function scheduleAutoReveal() {
+  clearAutoRevealTimer();
+  if (!state.autoReveal || state.phase !== "reveal" || document.hidden) return;
+  const rarity = state.results[state.revealIndex]?.rarity || "C";
+  const delay = reducedMotionQuery.matches
+    ? 520
+    : { C: 760, R: 820, SR: 940, SSR: 1180, UR: 1500 }[rarity];
+  autoRevealTimer = window.setTimeout(advanceReveal, delay);
+}
+
+function startPull(count, autoReveal = false) {
   if (state.phase) return;
   startMusic();
   const cost = count * GACHA_CONFIG.pullCost;
@@ -697,7 +795,9 @@ function startPull(count) {
     revealIndex: 0,
     nearMiss: pulled.nearMiss,
     buildBest: pulled.best,
+    autoReveal,
   });
+  pullArtPromises = preloadPullArt(state.results);
   persist();
   renderAll();
   setMusicDucked(true);
@@ -708,45 +808,83 @@ function startPull(count) {
   buildupTimer = window.setTimeout(startReveal, duration);
 }
 
-function startReveal() {
-  if (state.phase !== "buildup") return;
+async function startReveal() {
+  if (state.phase !== "buildup" || artTransitionPending) return;
+  artTransitionPending = true;
   clearTimeout(buildupTimer);
-  state.phase = "reveal";
-  state.revealIndex = 0;
-  renderCinematic();
-  setMusicDucked(true);
-  sfxReveal(state.results[0].rarity);
+  try {
+    await waitForPullArt(pullArtPromises.slice(0, 1), 1800);
+    if (state.phase !== "buildup") return;
+    state.phase = "reveal";
+    state.revealIndex = 0;
+    renderCinematic();
+    setMusicDucked(true);
+    sfxReveal(state.results[0].rarity);
+    scheduleAutoReveal();
+  } finally {
+    artTransitionPending = false;
+  }
 }
 
-function advanceReveal() {
-  if (state.phase !== "reveal") return;
+async function advanceReveal() {
+  if (state.phase !== "reveal" || artTransitionPending) return;
+  clearAutoRevealTimer();
   if (state.revealIndex + 1 >= state.results.length) {
-    if (state.results.length > 1) showSummary();
+    if (state.results.length > 1) void showSummary();
     else endPull();
     return;
   }
-  state.revealIndex += 1;
-  renderCinematic();
-  sfxReveal(state.results[state.revealIndex].rarity);
+  const currentIndex = state.revealIndex;
+  const nextIndex = currentIndex + 1;
+  artTransitionPending = true;
+  try {
+    await waitForPullArt(pullArtPromises.slice(nextIndex, nextIndex + 1), 900);
+    if (state.phase !== "reveal" || state.revealIndex !== currentIndex) return;
+    state.revealIndex = nextIndex;
+    renderCinematic();
+    sfxReveal(state.results[state.revealIndex].rarity);
+    scheduleAutoReveal();
+  } finally {
+    artTransitionPending = false;
+  }
 }
 
-function showSummary() {
-  if (!state.results.length) return;
-  cinematicSfxPlayer?.stopAll();
-  state.phase = "summary";
-  renderCinematic();
-  setMusicDucked(false);
-  sfxTick();
+async function showSummary() {
+  if (!state.results.length || artTransitionPending) return;
+  artTransitionPending = true;
+  clearAutoRevealTimer();
+  try {
+    await waitForPullArt(pullArtPromises, 1800);
+    if (state.phase !== "reveal") return;
+    state.autoReveal = false;
+    cinematicSfxPlayer?.stopAll();
+    state.phase = "summary";
+    renderCinematic();
+    setMusicDucked(false);
+    sfxTick();
+  } finally {
+    artTransitionPending = false;
+  }
 }
 
 function endPull() {
   clearTimeout(buildupTimer);
+  clearAutoRevealTimer();
   cinematicSfxPlayer?.stopAll();
   state.phase = null;
   state.results = [];
   state.revealIndex = 0;
+  state.autoReveal = false;
+  pullArtPromises = [];
+  artTransitionPending = false;
+  if (sharedPullActive) {
+    sharedPullActive = false;
+    removePullFromLocation();
+    document.title = STR.metaTitle;
+  }
   setMusicDucked(false);
   renderAll();
+  requestAnimationFrame(() => document.querySelector('[data-action="pull-ten"]')?.focus({ preventScroll: true }));
 }
 
 function renderRevealCard(item) {
@@ -776,9 +914,19 @@ function renderRevealCard(item) {
 
 function renderSummary() {
   const feedback = PULL_FEEDBACK[state.buildBest];
+  dom.summary.classList.toggle("is-single", state.results.length === 1);
   dom.summary.dataset.rarity = state.buildBest.toLowerCase();
   dom.summary.style.setProperty("--summary-tone", TONE[state.buildBest]);
   dom.summaryGrade.textContent = feedback.verdict;
+  dom.summaryKicker.textContent = sharedPullActive ? STR.sharedSummaryKicker : STR.summaryKicker;
+  dom.summaryCollect.textContent = sharedPullActive ? STR.enterSimulatorLabel : STR.collectLabel;
+  dom.summaryShare.textContent = state.results.length === 1
+    ? STR.shareCard
+    : STR.sharePull(state.results.length);
+  dom.summaryShare.setAttribute(
+    "aria-label",
+    `${dom.summaryShare.textContent} to Facebook`,
+  );
   dom.summaryGrid.innerHTML = state.results.map(item => {
     const rarity = RARITY[item.rarity];
     return `<article class="summary-card" data-rarity="${item.rarity.toLowerCase()}" style="--card-tone:${TONE[item.rarity]};--card-bg:${cardBackground(item.rarity)}">
@@ -798,6 +946,7 @@ function renderCinematic() {
   dom.buildup.hidden = state.phase !== "buildup";
   dom.reveal.hidden = state.phase !== "reveal";
   dom.summary.hidden = state.phase !== "summary";
+  dom.appShell.inert = active || !dom.topupSheet.hidden;
   document.body.classList.toggle("cinematic-open", active);
   if (!active) {
     lastCinematicFrame = "";
@@ -838,6 +987,10 @@ function renderCinematic() {
   if (state.phase === "buildup") animateBuildup();
   else if (state.phase === "reveal") animateRevealChrome();
   else if (state.phase === "summary") animateSummaryResults();
+  const focusTarget = state.phase === "buildup"
+    ? dom.buildup.querySelector("button")
+    : state.phase === "reveal" ? dom.reveal : dom.summaryShare;
+  requestAnimationFrame(() => focusTarget?.focus({ preventScroll: true }));
 }
 
 function buyPackage(index) {
@@ -882,6 +1035,35 @@ function toggleMute() {
   }
 }
 
+function cleanShareUrl() {
+  const url = new URL(location.href);
+  url.search = "";
+  url.hash = "";
+  return url.href;
+}
+
+function currentShareUrl() {
+  const url = new URL(cleanShareUrl());
+  const sharedItems = state.phase === "summary"
+    ? state.results
+    : state.phase === "reveal" ? [state.results[state.revealIndex]] : undefined;
+  const token = encodePullShareToken(sharedItems);
+  if (token) url.searchParams.set("pull", token);
+  return url.href;
+}
+
+function shareToFacebook() {
+  const url = new URL("https://www.facebook.com/sharer/sharer.php");
+  url.searchParams.set("u", currentShareUrl());
+  const popup = window.open(
+    url.href,
+    "astral-facebook-share",
+    "width=680,height=720,resizable=yes,scrollbars=yes",
+  );
+  if (popup) popup.opener = null;
+  else showToast(STR.sharePopupBlocked);
+}
+
 function handleEscape() {
   if (!dom.topupSheet.hidden) {
     closeTopup();
@@ -893,12 +1075,13 @@ function handleEscape() {
 }
 
 function handleAction(action, target) {
-  if (action !== "mute") startMusic();
+  if (action !== "mute" && action !== "share-facebook") startMusic();
   if (action === "home") showView("banner");
   else if (action === "mute") toggleMute();
   else if (action === "open-topup") openTopup();
   else if (action === "close-topup") closeTopup();
   else if (action === "pull-one") startPull(1);
+  else if (action === "auto-pull-ten") startPull(10, true);
   else if (action === "pull-ten") {
     if (state.phase === "summary") endPull();
     requestAnimationFrame(() => startPull(10));
@@ -907,6 +1090,7 @@ function handleAction(action, target) {
   else if (action === "advance-reveal") advanceReveal();
   else if (action === "reveal-all") showSummary();
   else if (action === "collect") endPull();
+  else if (action === "share-facebook") shareToFacebook();
   else if (action === "buy-package") buyPackage(Number(target.dataset.package));
   else if (action === "reset") resetAll();
 }
@@ -1058,12 +1242,17 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     dom.bgm.pause();
     cinematicSfxPlayer?.stopAll();
+    clearAutoRevealTimer();
   }
-  else if (musicStarted && !state.muted) dom.bgm.play().catch(() => {});
+  else {
+    if (musicStarted && !state.muted) dom.bgm.play().catch(() => {});
+    scheduleAutoReveal();
+  }
 });
 
 hydrateStrings();
 renderPackages();
+if (sharedPullActive) pullArtPromises = preloadPullArt(state.results);
 renderAll();
 scheduleDeferredMediaPreloads();
 dom.devOverlay.hidden = !devMode;

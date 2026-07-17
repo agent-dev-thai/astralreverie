@@ -42,6 +42,24 @@ def expect_cinematic_sfx(page, kind, key):
     )
 
 
+def expect_pull_og(page, shared_url, artifact_name):
+    expected_image_url = shared_url.replace(
+        "/?pull=", "/og/pull-v1.jpg?pull=", 1
+    )
+    expect(page.locator('meta[property="og:image"]')).to_have_attribute(
+        "content", expected_image_url
+    )
+    expect(page.locator('meta[name="twitter:image"]')).to_have_attribute(
+        "content", expected_image_url
+    )
+    response = page.request.get(expected_image_url)
+    assert response.ok, f"Pull OG request failed: {response.status} {expected_image_url}"
+    assert response.headers.get("content-type") == "image/jpeg"
+    image = response.body()
+    assert len(image) > 50_000, f"Pull OG image is unexpectedly small: {len(image)}"
+    (ARTIFACTS / artifact_name).write_bytes(image)
+
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
@@ -98,6 +116,7 @@ with sync_playwright() as playwright:
         page.screenshot(path=str(ARTIFACTS / f"astral-buildup-{presented}.png"))
         page.evaluate("window.__ASTRAL_DEBUG__.skip()")
         expect(page.locator("#cinematic-reveal")).to_be_visible()
+        assert_images_loaded(page)
         expect_cinematic_sfx(page, "reveal", rarity.lower())
         expect(page.locator("#cinematic-reveal")).to_have_attribute("data-rarity", rarity.lower())
         expect(page.locator("#reveal-tier")).to_have_text(rarity)
@@ -140,6 +159,103 @@ with sync_playwright() as playwright:
     page.locator('[data-action="skip-build"]').click()
     expect(page.locator("#cinematic-reveal")).to_have_attribute("data-rarity", "ssr")
     expect_cinematic_sfx(page, "reveal", "ssr")
+    revealed_card = page.evaluate("window.__ASTRAL_DEBUG__.getState().results[0]")
+    page.evaluate("""window.open = url => {
+      window.__FACEBOOK_SHARE_URL__ = url;
+      return {};
+    }""")
+    page.locator(".reveal-share").click()
+    reveal_after_share = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
+    assert reveal_after_share["phase"] == "reveal" and reveal_after_share["revealIndex"] == 0
+    shared_card_url = page.evaluate(
+        "() => new URL(window.__FACEBOOK_SHARE_URL__).searchParams.get('u')"
+    )
+    assert shared_card_url.endswith(f"?pull=v1.{revealed_card['id']}")
+
+    page.goto(shared_card_url)
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("#cinematic-summary")).to_have_class("cinematic-stage cinematic-summary is-single")
+    expect(page.locator(".summary-card")).to_have_count(1)
+    expect(page.locator(".summary-name")).to_have_text(revealed_card["name"])
+    expect(page.locator(".summary-share")).to_have_text("Share card")
+    expect(page.locator('meta[property="og:url"]')).to_have_attribute("content", shared_card_url)
+    expect_pull_og(page, shared_card_url, "astral-og-shared-card.jpg")
+    page.screenshot(path=str(ARTIFACTS / "astral-shared-card.png"), full_page=True)
+
+    page.goto("http://127.0.0.1:4173/?seed=4242&dev=1")
+    page.wait_for_load_state("networkidle")
+    page.evaluate("""window.open = url => {
+      window.__FACEBOOK_SHARE_URL__ = url;
+      return {};
+    }""")
+    page.locator('[data-action="share-facebook"]').first.click()
+    homepage_share_url = page.evaluate(
+        "() => new URL(window.__FACEBOOK_SHARE_URL__).searchParams.get('u')"
+    )
+    assert homepage_share_url == "http://127.0.0.1:4173/"
+    expect(page.locator('[data-action="auto-pull-ten"]')).to_be_visible()
+    page.locator('[data-action="auto-pull-ten"]').click()
+    expect(page.locator("#cinematic-buildup")).to_be_visible()
+    auto_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
+    assert auto_state["autoReveal"] is True
+    assert auto_state["totalPulls"] == 10
+    expect(page.locator("#cinematic-summary")).to_be_visible(timeout=24000)
+    assert_images_loaded(page)
+    auto_summary_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
+    assert auto_summary_state["autoReveal"] is False
+    assert len(auto_summary_state["results"]) == 10
+    shared_result_names = [result["name"] for result in auto_summary_state["results"]]
+
+    page.locator('[data-action="share-facebook"]').last.click()
+    facebook_share_url = page.evaluate("window.__FACEBOOK_SHARE_URL__")
+    assert facebook_share_url.startswith("https://www.facebook.com/sharer/sharer.php?")
+    shared_page_url = page.evaluate(
+        "url => new URL(url).searchParams.get('u')", facebook_share_url
+    )
+    assert shared_page_url.startswith("http://127.0.0.1:4173/?pull=v1.")
+    assert len(shared_page_url.split("?pull=v1.", 1)[1].split(".")) == 10
+    assert "seed" not in shared_page_url and "dev" not in shared_page_url
+    assert "auto" not in shared_page_url
+
+    page.goto(shared_page_url)
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("#cinematic-summary")).to_be_visible()
+    expect(page.locator("#summary-kicker")).to_have_text("Shared transmission")
+    expect(page.locator(".summary-collect")).to_have_text("Enter simulator")
+    expect(page).to_have_title("Shared pull — Astral Reverie")
+    assert page.locator(".summary-card").count() == 10
+    assert page.locator(".summary-name").all_inner_texts() == shared_result_names
+    expect(page.locator(".summary-share")).to_have_text("Share ×10 pull")
+    expect(page.locator('meta[property="og:url"]')).to_have_attribute("content", shared_page_url)
+    expect(page.locator('link[rel="canonical"]')).to_have_attribute("href", "http://127.0.0.1:4173/")
+    expect_pull_og(page, shared_page_url, "astral-og-shared-summary.jpg")
+    assert page.locator("#app-shell").evaluate("element => element.inert") is True
+    expect(page.locator(".summary-share")).to_be_focused()
+    page.screenshot(path=str(ARTIFACTS / "astral-shared-summary.png"), full_page=True)
+    expect(page.locator("#seed-label")).to_have_text("Shared result · local progress unchanged")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert_no_overflow(page, "mobile shared summary")
+    page.screenshot(path=str(ARTIFACTS / "astral-shared-summary-mobile.png"), full_page=True)
+    page.set_viewport_size({"width": 1440, "height": 1000})
+
+    page.evaluate("""window.open = url => {
+      window.__FACEBOOK_SHARE_URL__ = url;
+      return {};
+    }""")
+    page.locator(".summary-share").click()
+    reshared_page_url = page.evaluate(
+        "() => new URL(window.__FACEBOOK_SHARE_URL__).searchParams.get('u')"
+    )
+    assert reshared_page_url == shared_page_url
+    page.locator(".summary-collect").click()
+    expect(page.locator("#cinematic")).to_be_hidden()
+    assert "pull=" not in page.url
+    assert page.locator("#app-shell").evaluate("element => element.inert") is False
+
+    page.goto("http://127.0.0.1:4173/?pull=v1.unknown")
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("#cinematic")).to_be_hidden()
+    assert "pull=" not in page.url
 
     page.goto(BASE_URL)
     page.wait_for_load_state("networkidle")
@@ -153,6 +269,7 @@ with sync_playwright() as playwright:
     )
     assert page.evaluate("typeof window.Motion?.animate") == "function"
     expect(page.locator("#bgm")).to_have_attribute("src", "./assets/audio/house-beyond-stars-loop.m4a")
+    assert page.evaluate("window.__ASTRAL_DEBUG__.getState().gems") == 32_000
     assert_images_loaded(page)
     assert_no_overflow(page, "desktop banner")
     page.locator("#dev-overlay").evaluate("element => element.hidden = true")
@@ -182,6 +299,7 @@ with sync_playwright() as playwright:
     expect(page.locator("#cinematic-reveal")).to_be_visible()
     page.locator('[data-action="reveal-all"]').click()
     expect(page.locator("#cinematic-summary")).to_be_visible()
+    assert_images_loaded(page)
     expect(page.locator("#summary-grade")).not_to_be_empty()
     summary_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
     expect(page.locator("#cinematic-summary")).to_have_attribute(
@@ -223,7 +341,7 @@ with sync_playwright() as playwright:
     expect(page.locator("#topup-sheet")).to_be_visible()
     page.locator('[data-package="0"]').click()
     gems_after = page.evaluate("window.__ASTRAL_DEBUG__.getState().gems")
-    assert gems_after == gems_before + 60
+    assert gems_after == gems_before + 1600
     page.locator('[data-action="close-topup"]').click()
     expect(page.locator("#toast")).to_be_hidden(timeout=4000)
 
@@ -233,10 +351,21 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(950)
     assert_no_overflow(page, "mobile banner")
     expect(page.locator(".view-tabs")).to_be_visible()
+    for selector in (
+        '[data-action="share-facebook"]',
+        '[data-action="mute"]',
+        '[data-action="open-topup"]',
+    ):
+        target_box = page.locator(selector).first.bounding_box()
+        assert target_box and target_box["height"] >= 44, f"Mobile target is under 44px: {selector}={target_box}"
     pull_box = page.locator('.pull-console [data-action="pull-ten"]').bounding_box()
+    auto_pull_box = page.locator('.pull-console [data-action="auto-pull-ten"]').bounding_box()
     tabs_box = page.locator(".view-tabs").bounding_box()
     assert pull_box and tabs_box and pull_box["y"] + pull_box["height"] <= tabs_box["y"] + 1, (
         f"Primary mobile pull action is covered by navigation: pull={pull_box}, tabs={tabs_box}"
+    )
+    assert auto_pull_box and tabs_box and auto_pull_box["y"] + auto_pull_box["height"] <= tabs_box["y"] + 1, (
+        f"Auto-open mobile action is covered by navigation: auto={auto_pull_box}, tabs={tabs_box}"
     )
     page.screenshot(path=str(ARTIFACTS / "astral-mobile.png"), full_page=True)
 
@@ -286,4 +415,4 @@ with sync_playwright() as playwright:
     assert not console_errors, f"Console errors: {console_errors}"
     browser.close()
 
-print("Browser QA passed: sampled cinematic SFX, all rarity buildups, near-miss, desktop, pull ×1, pull ×10, summary, album, stats, top-up, mobile, reduced motion")
+print("Browser QA passed: shared pull deep link, clean homepage share, auto-open ×10, sampled cinematic SFX, all rarity buildups, near-miss, desktop, pull ×1, pull ×10, summary, album, stats, top-up, mobile, reduced motion")
