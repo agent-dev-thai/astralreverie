@@ -961,6 +961,106 @@ kbd {
   opacity: 0.82;
 }
 
+.album-teaser {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  border-color: color-mix(in oklch, var(--violet-400) 44%, var(--line-soft));
+  background:
+    radial-gradient(circle at 50% 28%, color-mix(in oklch, var(--violet-400) 12%, transparent), transparent 42%),
+    var(--ink-900);
+  color: var(--paper-400);
+  text-align: center;
+}
+
+.album-teaser::after {
+  background: linear-gradient(0deg, color-mix(in oklch, var(--ink-950) 94%, transparent), transparent 72%);
+}
+
+.album-teaser-orbit {
+  position: relative;
+  width: 4.5rem;
+  aspect-ratio: 1;
+  margin-bottom: var(--space-sm);
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--violet-400) 46%, transparent);
+  border-radius: 50%;
+}
+
+.album-teaser-orbit::before {
+  width: 0.7rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--violet-400);
+  box-shadow: 0 0 1.4rem color-mix(in oklch, var(--violet-400) 72%, transparent);
+  content: "";
+}
+
+.album-teaser-orbit i {
+  position: absolute;
+  width: 0.28rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--paper-300);
+}
+
+.album-teaser-orbit i:nth-child(1) {
+  top: 0.15rem;
+}
+
+.album-teaser-orbit i:nth-child(2) {
+  right: 0.35rem;
+  bottom: 0.75rem;
+}
+
+.album-teaser-orbit i:nth-child(3) {
+  bottom: 0.75rem;
+  left: 0.35rem;
+}
+
+.album-teaser-kicker {
+  color: var(--violet-300);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.album-teaser-title {
+  color: var(--paper-100);
+  font-family: "Unbounded", sans-serif;
+  font-size: 0.78rem;
+}
+
+.album-teaser-copy {
+  max-width: 16rem;
+  font-size: 0.62rem;
+}
+
+.album-teaser.is-awakened {
+  border-color: var(--gold-300);
+  background:
+    radial-gradient(circle at 50% 28%, color-mix(in oklch, var(--gold-300) 22%, transparent), transparent 44%),
+    color-mix(in oklch, var(--ink-900) 86%, var(--gold-500));
+  box-shadow: 0 0 2rem color-mix(in oklch, var(--gold-300) 16%, transparent);
+  animation: archive-awaken 780ms var(--ease-out) both;
+}
+
+.album-teaser.is-awakened .album-teaser-orbit {
+  border-color: color-mix(in oklch, var(--gold-300) 68%, transparent);
+  transform: rotate(45deg);
+}
+
+.album-teaser.is-awakened .album-teaser-orbit::before,
+.album-teaser.is-awakened .album-teaser-orbit i {
+  background: var(--gold-300);
+}
+
+.album-teaser.is-awakened .album-teaser-kicker {
+  color: var(--gold-300);
+}
+
 .album-card::after {
   position: absolute;
   inset: 0;
@@ -1251,6 +1351,30 @@ kbd {
   border-top: 1px solid var(--line-soft);
   color: var(--paper-500);
   font-size: 0.6rem;
+}
+
+.footer-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.footer-credit {
+  color: var(--paper-400);
+  text-decoration-color: color-mix(in oklch, var(--gold-300) 42%, transparent);
+  text-underline-offset: 0.18em;
+  transition: color 160ms, text-decoration-color 160ms;
+}
+
+.footer-credit:hover {
+  color: var(--gold-300);
+  text-decoration-color: currentColor;
+}
+
+.footer-credit:focus-visible {
+  outline: 2px solid var(--gold-300);
+  outline-offset: 3px;
 }
 
 .footer-seed {
@@ -2621,6 +2745,17 @@ kbd {
 @keyframes summary-impossible {
   from { opacity: 0; transform: scale(0.6) rotate(-16deg); }
   to { opacity: 0.95; transform: scale(1) rotate(0); }
+}
+
+@keyframes archive-awaken {
+  from {
+    opacity: 0;
+    transform: translateY(0.8rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes tap-breathe {

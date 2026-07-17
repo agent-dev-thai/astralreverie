@@ -44,6 +44,12 @@ Configure `FONTCONFIG_PATH` before importing Sharp and point it at a checked-in 
 
 Key takeaway: every server-rendered social image must resolve fonts from repository assets, never from the host operating system.
 
+### Cross-origin share popups expose dismissal, not publication
+
+The Facebook sharer does not give this app a trustworthy post-success result. The opener can poll the cross-origin window's `closed` property, but that only proves the dialog was dismissed and includes cancellation.
+
+Key takeaway: tie cleanup to popup dismissal and the exact result snapshot that opened it; never label dismissal as a successful post or let an old popup close a newer result.
+
 ### Decode the resolved pull during the cinematic gap
 
 The three showcase cards were still 1.0–1.37 MB PNGs, and result artwork was requested only when reveal markup appeared. Converting every runtime card to a bounded WebP and preloading only the resolved one/ten-card set during buildup reduced those showcase files to 74–81 KB and removed the reveal/download race without front-loading the whole collection.

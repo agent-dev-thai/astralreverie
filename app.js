@@ -250,6 +250,7 @@ const dom = {
 let toastTimer = 0;
 let buildupTimer = 0;
 let autoRevealTimer = 0;
+let sharePopupTimer = 0;
 let pullArtPromises = [];
 let artTransitionPending = false;
 let resetArmedUntil = 0;
@@ -352,9 +353,10 @@ function renderHeaderAndConsole() {
 }
 
 function renderAlbum() {
-  const ownedCount = Object.keys(state.owned).filter(id => state.owned[id] > 0).length;
+  const ownedCount = ITEMS.filter(item => state.owned[item.id] > 0).length;
+  const archiveComplete = ownedCount === ITEMS.length;
   dom.albumProgress.textContent = STR.albumProgress(ownedCount, ITEMS.length);
-  dom.albumGrid.innerHTML = ITEMS.map(item => {
+  const cards = ITEMS.map(item => {
     const count = state.owned[item.id] || 0;
     const owned = count > 0;
     const rarity = RARITY[item.rarity];
@@ -370,6 +372,15 @@ function renderAlbum() {
       <span class="album-title">${owned ? escapeHtml(item.title) : escapeHtml(STR.collectionEmpty)}</span>
     </article>`;
   }).join("");
+  const teaserKicker = archiveComplete ? STR.archiveCompleteKicker : STR.archiveTeaserKicker;
+  const teaserTitle = archiveComplete ? STR.archiveCompleteTitle : STR.archiveTeaserTitle;
+  const teaserCopy = archiveComplete ? STR.archiveCompleteCopy : STR.archiveTeaserCopy;
+  dom.albumGrid.innerHTML = `${cards}<article class="album-card album-teaser${archiveComplete ? " is-awakened" : ""}">
+    <span class="album-teaser-orbit" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="album-teaser-kicker">${escapeHtml(teaserKicker)}</span>
+    <strong class="album-teaser-title">${escapeHtml(teaserTitle)}</strong>
+    <span class="album-teaser-copy">${escapeHtml(teaserCopy)}</span>
+  </article>`;
 }
 
 function luckVerdict() {
@@ -870,6 +881,8 @@ async function showSummary() {
 function endPull() {
   clearTimeout(buildupTimer);
   clearAutoRevealTimer();
+  clearInterval(sharePopupTimer);
+  sharePopupTimer = 0;
   cinematicSfxPlayer?.stopAll();
   state.phase = null;
   state.results = [];
@@ -1052,7 +1065,25 @@ function currentShareUrl() {
   return url.href;
 }
 
+function closeSummaryWhenSharePopupCloses(popup, sharedResultsAtOpen) {
+  clearInterval(sharePopupTimer);
+  sharePopupTimer = window.setInterval(() => {
+    let popupClosed = false;
+    try {
+      popupClosed = popup.closed === true;
+    } catch {
+      return;
+    }
+    if (!popupClosed || !document.hasFocus()) return;
+
+    clearInterval(sharePopupTimer);
+    sharePopupTimer = 0;
+    if (state.phase === "summary" && state.results === sharedResultsAtOpen) endPull();
+  }, 400);
+}
+
 function shareToFacebook() {
+  const sharedResultsAtOpen = state.phase === "summary" ? state.results : null;
   const url = new URL("https://www.facebook.com/sharer/sharer.php");
   url.searchParams.set("u", currentShareUrl());
   const popup = window.open(
@@ -1060,8 +1091,12 @@ function shareToFacebook() {
     "astral-facebook-share",
     "width=680,height=720,resizable=yes,scrollbars=yes",
   );
-  if (popup) popup.opener = null;
-  else showToast(STR.sharePopupBlocked);
+  if (!popup) {
+    showToast(STR.sharePopupBlocked);
+    return;
+  }
+  popup.opener = null;
+  if (sharedResultsAtOpen) closeSummaryWhenSharePopupCloses(popup, sharedResultsAtOpen);
 }
 
 function handleEscape() {
@@ -1264,6 +1299,10 @@ if (devMode) {
     getState: () => structuredClone(state),
     pull: count => startPull(count),
     skip: () => startReveal(),
+    completeArchive: () => {
+      state.owned = Object.fromEntries(ITEMS.map(item => [item.id, 1]));
+      renderAlbum();
+    },
     getPresentation: () => structuredClone(currentPresentation()),
     getAudio: () => ({
       musicStarted,

@@ -44,7 +44,7 @@ def expect_cinematic_sfx(page, kind, key):
 
 def expect_pull_og(page, shared_url, artifact_name):
     expected_image_url = shared_url.replace(
-        "/?pull=", "/og/pull-v2.jpg?pull=", 1
+        "/?pull=", "/og/pull-v3.jpg?pull=", 1
     )
     expect(page.locator('meta[property="og:image"]')).to_have_attribute(
         "content", expected_image_url
@@ -162,7 +162,8 @@ with sync_playwright() as playwright:
     revealed_card = page.evaluate("window.__ASTRAL_DEBUG__.getState().results[0]")
     page.evaluate("""window.open = url => {
       window.__FACEBOOK_SHARE_URL__ = url;
-      return {};
+      window.__FACEBOOK_POPUP__ = { closed: false };
+      return window.__FACEBOOK_POPUP__;
     }""")
     page.locator(".reveal-share").click()
     reveal_after_share = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
@@ -186,7 +187,8 @@ with sync_playwright() as playwright:
     page.wait_for_load_state("networkidle")
     page.evaluate("""window.open = url => {
       window.__FACEBOOK_SHARE_URL__ = url;
-      return {};
+      window.__FACEBOOK_POPUP__ = { closed: false };
+      return window.__FACEBOOK_POPUP__;
     }""")
     page.locator('[data-action="share-facebook"]').first.click()
     homepage_share_url = page.evaluate(
@@ -216,6 +218,8 @@ with sync_playwright() as playwright:
     assert len(shared_page_url.split("?pull=v1.", 1)[1].split(".")) == 10
     assert "seed" not in shared_page_url and "dev" not in shared_page_url
     assert "auto" not in shared_page_url
+    page.evaluate("window.__FACEBOOK_POPUP__.closed = true")
+    expect(page.locator("#cinematic")).to_be_hidden(timeout=2000)
 
     page.goto(shared_page_url)
     page.wait_for_load_state("networkidle")
@@ -261,6 +265,12 @@ with sync_playwright() as playwright:
     page.wait_for_load_state("networkidle")
     page.evaluate("document.fonts.ready")
     expect(page.get_by_text("ASTRAL REVERIE", exact=True)).to_be_visible()
+    expect(page.locator(".footer-credit")).to_have_text("Made with love by Agent Dev Thai")
+    expect(page.locator(".footer-credit")).to_have_attribute(
+        "href", "https://www.facebook.com/profile.php?id=61571959323842"
+    )
+    expect(page.locator(".footer-credit")).to_have_attribute("target", "_blank")
+    expect(page.locator(".footer-credit")).to_have_attribute("rel", "noopener noreferrer")
     expect(page.locator("#view-banner")).to_be_visible()
     expect(page.locator(".featured-rarity strong")).to_have_text("UR")
     expect(page.locator(".rarity-seal span")).to_have_text("UR")
@@ -325,10 +335,19 @@ with sync_playwright() as playwright:
         "element => getComputedStyle(element).backgroundImage"
     )
     assert page.locator(".album-rarity").all_inner_texts()[0].startswith("UR ·")
-    assert page.locator(".album-card:not(.is-locked)").count() > 0
-    assert page.locator(".album-card:not(.is-locked) img").count() == page.locator(".album-card:not(.is-locked)").count()
+    assert page.locator('.album-card[data-rarity]:not(.is-locked)').count() > 0
+    assert page.locator('.album-card[data-rarity]:not(.is-locked) img').count() == page.locator('.album-card[data-rarity]:not(.is-locked)').count()
+    expect(page.locator(".album-teaser")).to_contain_text("Coming soon")
+    expect(page.locator(".album-teaser")).not_to_have_class("album-card album-teaser is-awakened")
     page.wait_for_timeout(650)
     page.screenshot(path=str(ARTIFACTS / "astral-album.png"), full_page=True)
+    page.evaluate("window.__ASTRAL_DEBUG__.completeArchive()")
+    expect(page.locator("#album-progress")).to_have_text("32 / 32 recovered")
+    expect(page.locator(".album-teaser")).to_have_class("album-card album-teaser is-awakened")
+    expect(page.locator(".album-teaser")).to_contain_text("You found the edge")
+    expect(page.locator(".album-teaser")).to_contain_text("Every known signal recovered")
+    page.wait_for_timeout(850)
+    page.screenshot(path=str(ARTIFACTS / "astral-album-complete.png"), full_page=True)
 
     page.locator('[data-view="stats"]').click()
     expect(page.locator("#view-stats")).to_be_visible()

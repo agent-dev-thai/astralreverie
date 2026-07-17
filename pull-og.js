@@ -3,7 +3,7 @@ import { resolve, sep } from "node:path";
 
 import { RARITY_ORDER } from "./gacha-core.js";
 
-export const PULL_OG_PATH = "/og/pull-v2.jpg";
+export const PULL_OG_PATH = "/og/pull-v3.jpg";
 export const PULL_OG_WIDTH = 1200;
 export const PULL_OG_HEIGHT = 630;
 
@@ -182,7 +182,7 @@ function sceneSvg(results, bestRarity) {
       <line x1="58" y1="108" x2="1142" y2="108" stroke="#6a4d66" stroke-width="2"/>
       <line x1="58" y1="580" x2="1142" y2="580" stroke="#6a4d66" stroke-width="2"/>
       <text x="58" y="610" fill="#f4b63e" font-family="Geologica, sans-serif" font-size="17" font-weight="700" letter-spacing="1.2">OPEN THE SIGNAL →</text>
-      <text x="1142" y="610" text-anchor="end" fill="#b7a9bd" font-family="Geologica, sans-serif" font-size="15">Cinematic pulls · zero real money</text>
+      <text x="1080" y="610" text-anchor="end" fill="#b7a9bd" font-family="Geologica, sans-serif" font-size="15">Cinematic pulls · zero real money</text>
     </svg>`);
 }
 
@@ -213,17 +213,27 @@ async function composePullOg(results) {
       top: 126,
     });
   } else {
-    const width = 204;
-    const height = 206;
-    const gap = 16;
-    const startX = 58;
-    const startY = 130;
-    const tiles = await Promise.all(results.map(item => renderCardTile(item, width, height, 158, true)));
+    const heroIndex = results.reduce((winnerIndex, item, index) => (
+      RARITY_ORDER[item.rarity] > RARITY_ORDER[results[winnerIndex].rarity] ? index : winnerIndex
+    ), 0);
+    const supportingResults = results.filter((_, index) => index !== heroIndex);
+    layers.push({
+      input: await renderCardTile(results[heroIndex], 330, 430, 350, false),
+      left: 58,
+      top: 126,
+    });
+
+    const width = 235;
+    const height = 135;
+    const gap = 12;
+    const startX = 412;
+    const startY = 126;
+    const tiles = await Promise.all(supportingResults.map(item => renderCardTile(item, width, height, 92, true)));
     tiles.forEach((tile, index) => {
       layers.push({
         input: tile,
-        left: startX + (index % 5) * (width + gap),
-        top: startY + Math.floor(index / 5) * (height + gap),
+        left: startX + (index % 3) * (width + gap),
+        top: startY + Math.floor(index / 3) * (height + gap),
       });
     });
   }
