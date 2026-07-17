@@ -18,6 +18,12 @@ Key takeaway: keep `.pnpm-store/` ignored and pass the explicit test-file glob i
 
 ## Frontend
 
+### Fix catalogue art inconsistencies at the shared asset contract
+
+Reveal cards, the archive, result summaries, and pull Open Graph images all consume the same `ITEMS` artwork metadata. Mixing transparent `contain` sprites with full-scene `cover` cards therefore creates the same visual mismatch across every surface, even if one view is patched with CSS.
+
+Key takeaway: ship every runtime catalogue image as a bounded full-scene WebP with `artMode: "cover"`; preserve special cutouts as source assets and bake their backdrops in the asset pipeline.
+
 ### Fixed mobile navigation can cover newly added actions
 
 The mobile view tabs are fixed to the bottom of the viewport. Adding another full-width row to `.pull-actions` pushed Auto-open behind those tabs even though the page itself remained scrollable; placing all three mobile pull choices in one grid row kept every primary action visible.

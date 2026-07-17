@@ -154,17 +154,17 @@ const item = (id, name, title, rarity, sigil, art = "", artMode = "contain") => 
 });
 
 export const ITEMS = [
-  item("seren", "Seren", "the Dusk Warden", "UR", "☾", "./assets/generated/optimized/seren-ur-512.webp"),
+  item("seren", "Seren", "the Dusk Warden", "UR", "☾", "./assets/generated/card-art/seren.webp", "cover"),
   item("kaelis", "Kaelis", "Star Devourer", "UR", "◒", "./assets/generated/card-art/kaelis.webp", "cover"),
   item("nyx", "Nyx", "Terminal Dawn", "UR", "⌁", "./assets/generated/card-art/nyx.webp", "cover"),
-  item("aurelia", "Aurelia", "Gilded Oracle", "SSR", "◎", "./assets/generated/optimized/aurelia-ssr-512.webp"),
+  item("aurelia", "Aurelia", "Gilded Oracle", "SSR", "◎", "./assets/generated/card-art/aurelia.webp", "cover"),
   item("vance", "Vance", "Debt Collector", "SSR", "◇", "./assets/generated/card-art/vance.webp", "cover"),
   item("miko", "Miko", "Shrine of Static", "SSR", "⌇", "./assets/generated/card-art/miko.webp", "cover"),
   item("thorne", "Thorne", "Iron Requiem", "SSR", "†", "./assets/generated/card-art/thorne.webp", "cover"),
   item("ilsa", "Ilsa", "Frostbound Teller", "SSR", "❄", "./assets/generated/card-art/ilsa.webp", "cover"),
   item("rho", "Rho", "Equation Zero", "SSR", "∅", "./assets/generated/card-art/rho.webp", "cover"),
   item("bram", "Bram", "Cinder Sentinel", "SR", "△", "./assets/generated/card-art/bram.webp", "cover"),
-  item("cyra", "Cyra", "Echo Diver", "SR", "≋", "./assets/generated/optimized/cyra-sr-512.webp"),
+  item("cyra", "Cyra", "Echo Diver", "SR", "≋", "./assets/generated/card-art/cyra.webp", "cover"),
   item("dov", "Dov", "Quiet Cartographer", "SR", "⌖", "./assets/generated/card-art/dov.webp", "cover"),
   item("ember", "Ember", "Match-Girl Major", "SR", "✢", "./assets/generated/card-art/ember.webp", "cover"),
   item("fenn", "Fenn", "Tidewalker", "SR", "≈", "./assets/generated/card-art/fenn.webp", "cover"),

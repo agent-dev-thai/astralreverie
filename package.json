@@ -6,10 +6,11 @@
   "description": "A satirical, cinematic gacha pull simulator.",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check app.js && node --check cinematic-media.js && node --check cinematic-sfx.js && node --check gacha-core.js && node --check logic.js && node --check pull-og.js && node --check pull-share.js && node --check strings.js && node --check tools/generate_elevenlabs_sfx.mjs && node --check tools/process_elevenlabs_sfx.mjs",
+    "check": "node --check server.mjs && node --check app.js && node --check cinematic-media.js && node --check cinematic-sfx.js && node --check gacha-core.js && node --check logic.js && node --check pull-og.js && node --check pull-share.js && node --check strings.js && node --check tools/generate_elevenlabs_sfx.mjs && node --check tools/process_elevenlabs_sfx.mjs && node --check tools/process_legacy_card_art.mjs",
     "sfx:generate": "node tools/generate_elevenlabs_sfx.mjs",
     "sfx:process": "node tools/process_elevenlabs_sfx.mjs",
     "images:process": "python3 tools/process_runtime_images.py",
+    "images:legacy-cards": "node tools/process_legacy_card_art.mjs",
     "share:assets": "python3 tools/process_share_assets.py",
     "vendor:motion": "cp node_modules/motion/dist/motion.js assets/vendor/motion-12.42.2.js && cp node_modules/motion/LICENSE.md assets/vendor/MOTION-LICENSE.md",
     "test": "node --test test/*.test.mjs"
