@@ -1,0 +1,17 @@
+{
+  "name": "fake-gacha",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A dependency-free, satirical gacha pull simulator.",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check app.js && node --check gacha-core.js && node --check logic.js && node --check strings.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.27.0"
+}
+

@@ -1,0 +1,41 @@
+id,role,type,description,size/ratio,style line ref,source
+astral-banner,Featured banner backdrop,Static 2D,"Shattered astral rail crossing an eclipse above a distant indigo station; no characters; room for interface copy on the left",16:9,STYLE-FORMULA-1,generate
+seren-ur,Featured UR character art,Static 2D,"Seren the Dusk Warden; full-figure premium character sprite with crescent glaive",4:5,STYLE-FORMULA-1,generate
+aurelia-ssr,SSR character art,Static 2D,"Aurelia the Gilded Oracle; full-figure character sprite with mechanical astrolabe",4:5,STYLE-FORMULA-1,generate
+cyra-sr,SR character art,Static 2D,"Cyra the Echo Diver; full-figure character sprite with signal ribbons and compact visor",4:5,STYLE-FORMULA-1,generate
+warp-void,Cinematic buildup backdrop,Static 2D,"Abstract astral tunnel with a warm white vanishing point and streaking plum-gold particles; no characters",9:16,STYLE-FORMULA-1,generate
+constellation-field,Ambient page decoration,Procedural 2D,"Sparse offset stars and thin orbital linework that frame rather than compete with the pull terminal",responsive viewport,STYLE-FORMULA-1,generate
+kaelis,UR character card,Static 2D,"Kaelis the Star Devourer with an ember-lined mantle and star-eater spear",4:5,STYLE-FORMULA-1,generate
+nyx,UR character card,Static 2D,"Nyx the Terminal Dawn with a terminal halo and dawn blade",4:5,STYLE-FORMULA-1,generate
+vance,SSR character card,Static 2D,"Vance the Debt Collector in tailored suit armor with floating debt seals",4:5,STYLE-FORMULA-1,generate
+miko,SSR character card,Static 2D,"Miko of the Shrine of Static with signal ribbons and tuning-fork staff",4:5,STYLE-FORMULA-1,generate
+thorne,SSR character card,Static 2D,"Thorne of the Iron Requiem in heavy armor with a slab-like great blade",4:5,STYLE-FORMULA-1,generate
+ilsa,SSR character card,Static 2D,"Ilsa the Frostbound Teller with floating crystal divination cards",4:5,STYLE-FORMULA-1,generate
+rho,SSR character card,Static 2D,"Rho of Equation Zero with a geometric visor and orbital equation rings",4:5,STYLE-FORMULA-1,generate
+bram,SR character card,Static 2D,"Bram the Cinder Sentinel with compact armor and furnace shield",4:5,STYLE-FORMULA-1,generate
+dov,SR character card,Static 2D,"Dov the Quiet Cartographer with a brass star-map projector",4:5,STYLE-FORMULA-1,generate
+ember,SR character card,Static 2D,"Ember the Match-Girl Major with copper braids and flame sabre",4:5,STYLE-FORMULA-1,generate
+fenn,SR character card,Static 2D,"Fenn the Tidewalker with crescent hydro blades",4:5,STYLE-FORMULA-1,generate
+gale,SR character card,Static 2D,"Gale the Stormstitcher with a needle-like lightning weapon",4:5,STYLE-FORMULA-1,generate
+hana,SR character card,Static 2D,"Hana the Petal Vanguard in petal armor with an elegant polearm",4:5,STYLE-FORMULA-1,generate
+charm,R trinket card,Static 2D,"Ornate translucent Voidglass Charm floating in a cosmic void",4:5,STYLE-FORMULA-1,generate
+lens,R trinket card,Static 2D,"Cracked brass Star Lens refracting astral light",4:5,STYLE-FORMULA-1,generate
+coil,R trinket card,Static 2D,"Copper-and-gold Humming Coil with restrained violet sparks",4:5,STYLE-FORMULA-1,generate
+map,R trinket card,Static 2D,"Torn Half a Star Map on a navigator's table",4:5,STYLE-FORMULA-1,generate
+key,R trinket card,Static 2D,"Impossible black-and-gold Key to Nowhere above a sealed aperture",4:5,STYLE-FORMULA-1,generate
+vial,R trinket card,Static 2D,"Glass Vial of Almost containing luminous unsettled liquid",4:5,STYLE-FORMULA-1,generate
+quill,R trinket card,Static 2D,"Metallic Comet Quill trailing fine gold sparks",4:5,STYLE-FORMULA-1,generate
+bell,R trinket card,Static 2D,"Matte-black Silent Bell with visible silent wave rings",4:5,STYLE-FORMULA-1,generate
+cog,C junk card,Static 2D,"Broken greasy Cracked Cog on a maintenance floor",4:5,STYLE-FORMULA-1,generate
+canteen,C junk card,Static 2D,"Dented Canteen with worn straps on an abandoned train seat",4:5,STYLE-FORMULA-1,generate
+rock,C junk card,Static 2D,"Suspicious violet-black Rock with a faint gold seam",4:5,STYLE-FORMULA-1,generate
+coupon,C junk card,Static 2D,"Crumpled Expired Coupon with abstract faded blocks and no text",4:5,STYLE-FORMULA-1,generate
+sock,C junk card,Static 2D,"One rumpled Cosmic Sock on a lost-and-found bench",4:5,STYLE-FORMULA-1,generate
+manual,C junk card,Static 2D,"Closed Unread Manual with a blank dusty cover",4:5,STYLE-FORMULA-1,generate
+battery,C junk card,Static 2D,"Depleted cylindrical Dead Battery on a maintenance shelf",4:5,STYLE-FORMULA-1,generate
+receipt,C junk card,Static 2D,"Long curled Trace Receipt with abstract blank lines and no writing",4:5,STYLE-FORMULA-1,generate
+warp-c,C-rarity pull backdrop,Static 2D,"Damaged salvage hatch with ash sparks in a sooty maintenance chute",9:16,STYLE-FORMULA-1,generate
+warp-r,R-rarity pull backdrop,Static 2D,"Cobalt mechanical iris and comet lens in an indigo navigation tunnel",9:16,STYLE-FORMULA-1,generate
+warp-sr,SR-rarity pull backdrop,Static 2D,"Electric-violet harmonic prism inside broken orbital rings",9:16,STYLE-FORMULA-1,generate
+warp-ssr,SSR-rarity pull backdrop,Static 2D,"Radiant mechanical sun at the end of an astral cathedral corridor",9:16,STYLE-FORMULA-1,generate
+warp-ur,UR-rarity pull backdrop,Static 2D,"Black eclipse crowned by rose-gold petals and coral aurora ribbons",9:16,STYLE-FORMULA-1,generate

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#120d1a">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <canvas id="constellation-canvas" aria-hidden="true"></canvas>
+  <div class="page-orbit page-orbit-a" aria-hidden="true"></div>
+  <div class="page-orbit page-orbit-b" aria-hidden="true"></div>
+
+  <div class="app-shell" id="app-shell">
+    <header class="site-header">
+      <button class="brand-lockup" type="button" data-action="home">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span>
+          <strong data-i18n="appName"></strong>
+          <small data-i18n="appKicker"></small>
+        </span>
+      </button>
+
+      <nav class="view-tabs" aria-label="Primary" data-i18n-aria="primaryNav">
+        <button class="view-tab is-active" type="button" data-view="banner" data-i18n="navBanner"></button>
+        <button class="view-tab" type="button" data-view="album" data-i18n="navAlbum"></button>
+        <button class="view-tab" type="button" data-view="stats" data-i18n="navStats"></button>
+        <button class="view-tab" type="button" data-view="log" data-i18n="navLog"></button>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-button" type="button" data-action="mute" data-i18n-aria="muteOn">
+          <span class="sound-glyph" aria-hidden="true">◖</span>
+        </button>
+        <button class="shard-button" type="button" data-action="open-topup">
+          <span class="shard-gem" aria-hidden="true"></span>
+          <span id="header-gems">0</span>
+          <span class="shard-plus" aria-hidden="true">+</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-stage">
+      <section class="app-view is-active" id="view-banner" data-view-panel="banner">
+        <div class="banner-layout">
+          <article class="feature-poster" aria-labelledby="banner-title">
+            <img class="feature-backdrop" src="./assets/generated/astral-banner.png" alt="">
+            <div class="feature-vignette" aria-hidden="true"></div>
+            <div class="feature-grid" aria-hidden="true"></div>
+            <img class="feature-character" src="./assets/generated/seren-ur.png" alt="" id="feature-character">
+
+            <div class="banner-badge">
+              <span class="live-dot" aria-hidden="true"></span>
+              <span data-i18n="limitedBadge"></span>
+            </div>
+
+            <div class="banner-copy">
+              <p class="eyebrow" data-i18n="eventKicker"></p>
+              <h1 id="banner-title" data-i18n="bannerTitle"></h1>
+              <p class="banner-subtitle" data-i18n="bannerSubtitle"></p>
+              <div class="banner-meta">
+                <span data-i18n="eventEnds"></span>
+                <span aria-hidden="true">✦</span>
+                <span data-i18n="featuredOdds"></span>
+              </div>
+            </div>
+
+            <div class="edition-index" aria-hidden="true">
+              <span>AR</span>
+              <strong>01</strong>
+            </div>
+          </article>
+
+          <aside class="pull-console" aria-labelledby="pull-console-title">
+            <div class="console-heading">
+              <div>
+                <p class="eyebrow" data-i18n="pullKicker"></p>
+                <h2 id="pull-console-title" data-i18n="pullTitle"></h2>
+              </div>
+              <div class="rarity-seal" aria-hidden="true"><span>UR</span></div>
+            </div>
+
+            <div class="pity-block">
+              <div class="pity-copy">
+                <span data-i18n="urPity"></span>
+                <strong><span id="pity-value">0</span><small id="pity-limit">/ 80</small></strong>
+              </div>
+              <div class="pity-track" role="progressbar" aria-valuemin="0" aria-valuemax="80" aria-valuenow="0" id="pity-progress">
+                <span id="pity-fill"></span>
+              </div>
+              <p id="pity-hint"></p>
+            </div>
+
+            <dl class="odds-strip">
+              <div><dt data-i18n="baseRate"></dt><dd>0.6%</dd></div>
+              <div><dt data-i18n="softPity"></dt><dd>65</dd></div>
+              <div><dt data-i18n="hardPity"></dt><dd>80</dd></div>
+            </dl>
+
+            <blockquote id="snark-line"></blockquote>
+
+            <div class="pull-actions">
+              <button class="pull-button pull-button-single" type="button" data-action="pull-one">
+                <span data-i18n="pullOne"></span>
+                <small><i class="mini-gem" aria-hidden="true"></i>160</small>
+              </button>
+              <button class="pull-button pull-button-ten" type="button" data-action="pull-ten">
+                <span data-i18n="pullTen"></span>
+                <small><i class="mini-gem dark" aria-hidden="true"></i><span data-i18n="pullTenCost"></span></small>
+              </button>
+            </div>
+
+            <div class="fake-spend-line">
+              <span data-i18n="fakeSpendLabel"></span>
+              <strong id="fake-spend">$0.00</strong>
+              <small data-i18n="fakeSpendSuffix"></small>
+            </div>
+
+            <div class="control-hint">
+              <span><kbd data-i18n="keyDigitOne"></kbd><span data-i18n="keySingle"></span></span>
+              <span><kbd data-i18n="keySpace"></kbd><span data-i18n="keyMulti"></span></span>
+              <span><kbd data-i18n="keyEscape"></kbd><span data-i18n="keySkip"></span></span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="app-view content-view" id="view-album" data-view-panel="album" hidden>
+        <header class="section-heading">
+          <div><p class="eyebrow" data-i18n="archiveKicker"></p><h2 data-i18n="albumTitle"></h2></div>
+          <p id="album-progress"></p>
+        </header>
+        <div class="album-grid" id="album-grid"></div>
+      </section>
+
+      <section class="app-view content-view" id="view-stats" data-view-panel="stats" hidden>
+        <header class="section-heading">
+          <div><p class="eyebrow" data-i18n="auditKicker"></p><h2 data-i18n="statsTitle"></h2></div>
+          <p data-i18n="statsIntro"></p>
+        </header>
+        <div class="stats-layout">
+          <div class="stat-ledger" id="stat-ledger"></div>
+          <aside class="verdict-panel">
+            <p class="eyebrow" data-i18n="verdictLabel"></p>
+            <p class="verdict-copy" id="luck-verdict"></p>
+            <button class="danger-button" type="button" data-action="reset" data-i18n="resetLabel"></button>
+          </aside>
+        </div>
+      </section>
+
+      <section class="app-view content-view" id="view-log" data-view-panel="log" hidden>
+        <header class="section-heading">
+          <div><p class="eyebrow" data-i18n="logKicker"></p><h2 data-i18n="logTitle"></h2></div>
+          <p data-i18n="logIntro"></p>
+        </header>
+        <div class="log-table" id="log-table"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span data-i18n="footerNotice"></span>
+      <span class="footer-seed" id="seed-label"></span>
+    </footer>
+  </div>
+
+  <div class="sheet-scrim" id="sheet-scrim" hidden></div>
+  <aside class="topup-sheet" id="topup-sheet" aria-modal="true" role="dialog" aria-labelledby="topup-title" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <header>
+      <div><p class="eyebrow" data-i18n="storeKicker"></p><h2 id="topup-title" data-i18n="topupTitle"></h2></div>
+      <button class="icon-button" type="button" data-action="close-topup" data-i18n-aria="closeLabel"><span aria-hidden="true">×</span></button>
+    </header>
+    <p class="sheet-intro" data-i18n="topupIntro"></p>
+    <div class="package-list" id="package-list"></div>
+    <p class="sheet-total"><span data-i18n="lifetimeSpend"></span> <strong id="sheet-spend">$0.00</strong></p>
+  </aside>
+
+  <section class="cinematic" id="cinematic" aria-live="polite" hidden>
+    <div class="cinematic-stage cinematic-buildup" id="cinematic-buildup" hidden>
+      <img src="./assets/generated/rarity-warps/warp-c.webp" alt="" class="warp-backdrop" id="warp-backdrop">
+      <div class="warp-fog" aria-hidden="true"></div>
+      <div class="warp-streaks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="warp-core" aria-hidden="true"></div>
+      <span class="build-grade" id="build-grade"></span>
+      <p id="build-caption"></p>
+      <button class="cinematic-skip" type="button" data-action="skip-build" data-i18n="skipLabel"></button>
+    </div>
+
+    <div class="cinematic-stage cinematic-reveal" id="cinematic-reveal" role="button" tabindex="0" data-action="advance-reveal" hidden>
+      <div class="reveal-beam" aria-hidden="true"></div>
+      <div class="reveal-aperture" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="reveal-particles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="reveal-counter" id="reveal-counter"></span>
+      <span class="reveal-card" id="reveal-card"></span>
+      <span class="tap-hint" data-i18n="tapContinue"></span>
+      <button class="cinematic-skip reveal-all" type="button" data-action="reveal-all" data-i18n="revealAll"></button>
+    </div>
+
+    <div class="cinematic-stage cinematic-summary" id="cinematic-summary" hidden>
+      <div class="summary-header">
+        <div><p class="eyebrow" data-i18n="summaryKicker"></p><h2 data-i18n="summaryTitle"></h2></div>
+        <p class="summary-grade" id="summary-grade"></p>
+      </div>
+      <div class="summary-grid" id="summary-grid"></div>
+      <p class="summary-snark" id="summary-snark"></p>
+      <div class="summary-actions">
+        <button type="button" class="summary-collect" data-action="collect" data-i18n="collectLabel"></button>
+        <button type="button" class="summary-again" data-action="pull-ten" data-i18n="againLabel"></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="dev-overlay" id="dev-overlay" hidden></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
