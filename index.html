@@ -44,14 +44,46 @@
       <section class="app-view is-active" id="view-banner" data-view-panel="banner">
         <div class="banner-layout">
           <article class="feature-poster" aria-labelledby="banner-title">
-            <img class="feature-backdrop" src="./assets/generated/astral-banner.png" alt="">
+            <picture class="feature-backdrop-picture">
+              <source
+                media="(max-width: 720px)"
+                srcset="./assets/generated/optimized/astral-banner-mobile-768.webp 768w"
+                sizes="100vw"
+              >
+              <img
+                class="feature-backdrop"
+                src="./assets/generated/optimized/astral-banner-1280.webp"
+                srcset="./assets/generated/optimized/astral-banner-768.webp 768w, ./assets/generated/optimized/astral-banner-1280.webp 1280w"
+                sizes="65vw"
+                width="1536"
+                height="1024"
+                fetchpriority="high"
+                decoding="async"
+                alt=""
+              >
+            </picture>
             <div class="feature-vignette" aria-hidden="true"></div>
             <div class="feature-grid" aria-hidden="true"></div>
-            <img class="feature-character" src="./assets/generated/seren-ur.png" alt="" id="feature-character">
+            <img
+              class="feature-character"
+              src="./assets/generated/optimized/seren-ur-768.webp"
+              srcset="./assets/generated/optimized/seren-ur-512.webp 512w, ./assets/generated/optimized/seren-ur-768.webp 768w"
+              sizes="(max-width: 720px) 56vw, 42vw"
+              width="1024"
+              height="1536"
+              decoding="async"
+              alt=""
+              id="feature-character"
+            >
 
             <div class="banner-badge">
               <span class="live-dot" aria-hidden="true"></span>
               <span data-i18n="limitedBadge"></span>
+            </div>
+
+            <div class="featured-rarity" aria-hidden="true">
+              <strong>UR</strong>
+              <span>✦ ✦ ✦ ✦ ✦</span>
             </div>
 
             <div class="banner-copy">
@@ -177,10 +209,12 @@
 
   <section class="cinematic" id="cinematic" aria-live="polite" hidden>
     <div class="cinematic-stage cinematic-buildup" id="cinematic-buildup" hidden>
-      <img src="./assets/generated/rarity-warps/warp-c.webp" alt="" class="warp-backdrop" id="warp-backdrop">
+      <img alt="" class="warp-backdrop" id="warp-backdrop" width="900" height="1600" decoding="async">
+      <video class="warp-video" id="warp-video" muted playsinline preload="metadata" aria-hidden="true"></video>
       <div class="warp-fog" aria-hidden="true"></div>
       <div class="warp-streaks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="warp-core" aria-hidden="true"></div>
+      <span class="build-rarity" id="build-rarity" aria-hidden="true"></span>
       <span class="build-grade" id="build-grade"></span>
       <p id="build-caption"></p>
       <button class="cinematic-skip" type="button" data-action="skip-build" data-i18n="skipLabel"></button>
@@ -190,6 +224,8 @@
       <div class="reveal-beam" aria-hidden="true"></div>
       <div class="reveal-aperture" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="reveal-particles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="reveal-tier" id="reveal-tier" aria-hidden="true"></span>
+      <div class="rarity-frame" id="rarity-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <span class="reveal-counter" id="reveal-counter"></span>
       <span class="reveal-card" id="reveal-card"></span>
       <span class="tap-hint" data-i18n="tapContinue"></span>
@@ -212,7 +248,9 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="dev-overlay" id="dev-overlay" hidden></div>
+  <audio id="bgm" src="./assets/audio/house-beyond-stars-loop.m4a" preload="metadata" loop hidden></audio>
 
+  <script src="./assets/vendor/motion-12.42.2.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

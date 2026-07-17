@@ -8,7 +8,7 @@ Run the production server from the repository root:
 pnpm start
 ```
 
-Then open `http://127.0.0.1:3000/`. Add `?seed=123` for a reproducible pull sequence or `?seed=123&dev=1` for the FPS/debug overlay. The app has no runtime dependencies and no build step.
+Then open `http://127.0.0.1:3000/`. Add `?seed=123` for a reproducible pull sequence or `?seed=123&dev=1` for the FPS/debug overlay. Motion is vendored locally and the app has no compilation step.
 
 ## Railway deployment
 
@@ -33,10 +33,20 @@ Key implementation files:
 - `strings.js`: player-visible copy, item pool, rarity metadata, and packages
 - `logic.js`: the single-player deployment stub
 - `assets/generated/`: final generated artwork, including unique art for all 32 cards
+- `assets/generated/optimized/`: responsive WebP hero assets used by the initial page load
+- `cinematic-media.js`: isolated portrait/landscape video contract with per-treatment fallbacks
+- `cinematic-sfx.js`: ElevenLabs buildup/reveal sample loader with cancellation and oscillator fallback
+- `assets/audio/house-beyond-stars-loop.m4a`: normalized, looped production background music
+- `assets/audio/sfx/`: eleven web-ready cinematic one-shots
+- `design/higgsfield-cinematic-brief.md`: six-treatment Higgsfield shot bible, prompts, filenames, and export requirements
 - `design/assets.csv`, `design/style-formula.txt`, `design/asset-prompts.md`, `design/card-art-prompts.md`, `design/rarity-warp-prompts.md`: asset provenance, prompt sets, and style contract
 - `tools/process_card_art.py`: repeatable PNG-to-WebP card optimization and contact-sheet generation
 - `tools/process_rarity_warps.py`: repeatable rarity-warp optimization and contact-sheet generation
+- `tools/process_runtime_images.py`: repeatable responsive hero and rarity-chip WebP generation
+- `tools/generate_elevenlabs_sfx.mjs` and `tools/process_elevenlabs_sfx.mjs`: reproducible SFX generation and delivery mix
 - `tools/qa_playwright.py`: desktop/mobile interaction and screenshot QA
+
+The Railway server Brotli/gzip-compresses text and fonts, supports conditional asset caching, and honors byte ranges for cinematic/audio startup. Large fallback posters and ElevenLabs samples are deferred until after the critical page load; slow or data-saver connections stay on the on-demand CSS/oscillator fallbacks.
 
 The original design-handoff documentation and prototype files are retained below and remain unchanged reference material.
 
@@ -125,7 +135,7 @@ Pill fixed above tab bar (bottom 86px, centered, z 60): bg `rgba(20,16,40,.95)`,
 - **Pull flow**: Warp button → validate gems (insufficient → toast "Not enough shards — 'top up' (it's free, unlike real life)" + auto-open top-up sheet) → deduct cost → roll results → buildup → reveal(s) → summary (10x) → collect/again.
 - **Whole reveal screen is a tap target**; skip/reveal-all buttons `stopPropagation`.
 - **Sheet scrim click closes**; sheet body stops propagation.
-- **SFX** (WebAudio oscillators, no samples; lazily create AudioContext on first interaction; global mute toggle):
+- **SFX** (ElevenLabs cinematic samples through WebAudio, oscillator fallback, lazy AudioContext on first interaction, global mute toggle):
   - Whoosh on buildup start (low sawtooth sweeps ~120/180Hz, 1.2s, + soft 560Hz sine).
   - Reveal ding pitched by rarity — base Hz: C 330, R 440, SR 587, SSR 740, UR 880; triangle + 1.5× sine overtone; SSR adds 2× octave; UR plays a 4-note rising arpeggio (1×, 1.25×, 1.5×, 2×).
   - UI tick: 880Hz triangle, 80ms.

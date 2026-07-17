@@ -28,10 +28,18 @@ def assert_no_overflow(page, label):
 def assert_images_loaded(page):
     failures = page.evaluate(
         """() => [...document.images]
-          .filter(image => !image.complete || image.naturalWidth === 0)
+          .filter(image => image.hasAttribute('src') && (!image.complete || image.naturalWidth === 0))
           .map(image => image.getAttribute('src'))"""
     )
     assert not failures, f"Images failed to load: {failures}"
+
+
+def expect_cinematic_sfx(page, kind, key):
+    page.wait_for_function(
+        """expected => window.__ASTRAL_DEBUG__
+          .getAudio().cinematicSfx?.[expected.kind] === expected.key""",
+        arg={"kind": kind, "key": key},
+    )
 
 
 with sync_playwright() as playwright:
@@ -52,9 +60,15 @@ with sync_playwright() as playwright:
         page.locator('.pull-console [data-action="pull-one"]').click()
         expect(page.locator("#cinematic-buildup")).to_be_visible()
         expect(page.locator("#cinematic-buildup")).to_have_attribute("data-rarity", presented)
+        expect(page.locator("#build-rarity")).to_have_text(presented.upper())
         expect(page.locator("#warp-backdrop")).to_have_attribute(
             "src", f"./assets/generated/rarity-warps/warp-{presented}.webp"
         )
+        expect(page.locator("#warp-video")).to_have_attribute(
+            "src", f"./assets/generated/cinematics/landscape/warp-{presented}.mp4"
+        )
+        expect(page.locator("#warp-video")).to_have_class("warp-video is-ready")
+        expect_cinematic_sfx(page, "buildup", presented)
         expect(page.locator("#build-grade")).not_to_be_empty()
         state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
         assert state["buildBest"] == rarity, f"Seed {seed} produced {state['buildBest']}, expected {rarity}"
@@ -64,15 +78,44 @@ with sync_playwright() as playwright:
         core_animations.add(page.locator(".warp-core").evaluate(
             "element => getComputedStyle(element).animationName"
         ))
-        page.wait_for_timeout(420)
+        presentation = page.evaluate("window.__ASTRAL_DEBUG__.getPresentation()")
+        active_duration = (
+            presentation["videoDurationMs"]
+            if presentation["video"]["enabled"]
+            else presentation["fallbackDurationMs"]
+        )
+        peak_delay = min(
+            active_duration - 260,
+            round(active_duration * (0.3 if rarity in ("SSR", "UR") else 0.4) + 650),
+        )
+        page.wait_for_timeout(peak_delay)
+        build_rarity_opacity = float(page.locator("#build-rarity").evaluate(
+            "element => getComputedStyle(element).opacity"
+        ))
+        assert build_rarity_opacity >= (0.5 if rarity in ("SSR", "UR") else 0.22), (
+            f"{rarity} buildup wordmark is too quiet: {build_rarity_opacity}"
+        )
         page.screenshot(path=str(ARTIFACTS / f"astral-buildup-{presented}.png"))
-        page.locator('[data-action="skip-build"]').click()
+        page.evaluate("window.__ASTRAL_DEBUG__.skip()")
         expect(page.locator("#cinematic-reveal")).to_be_visible()
+        expect_cinematic_sfx(page, "reveal", rarity.lower())
         expect(page.locator("#cinematic-reveal")).to_have_attribute("data-rarity", rarity.lower())
+        expect(page.locator("#reveal-tier")).to_have_text(rarity)
+        expect(page.locator("#rarity-frame")).to_have_attribute("data-rarity", rarity.lower())
         expect(page.locator("#reveal-card img")).to_have_count(1)
+        premium_chip = page.locator("#reveal-card .premium-tier-chip")
+        if rarity in ("SSR", "UR"):
+            expect(premium_chip).to_have_count(1)
+            assert f"rarity-chip-{rarity.lower()}.webp" in premium_chip.evaluate(
+                "element => getComputedStyle(element).backgroundImage"
+            )
+        else:
+            expect(premium_chip).to_have_count(0)
         reveal_animations.add(page.locator("#reveal-card").evaluate(
             "element => getComputedStyle(element).animationName"
         ))
+        page.wait_for_timeout(620)
+        page.screenshot(path=str(ARTIFACTS / f"astral-reveal-{rarity.lower()}.png"))
 
     assert len(buildup_animations) == 5, f"Buildup animations are not unique: {buildup_animations}"
     assert len(core_animations) == 5, f"Core animations are not unique: {core_animations}"
@@ -85,24 +128,39 @@ with sync_playwright() as playwright:
     expect(page.locator("#warp-backdrop")).to_have_attribute(
         "src", "./assets/generated/rarity-warps/warp-sr.webp"
     )
+    expect(page.locator("#warp-video")).to_have_attribute(
+        "src", "./assets/generated/cinematics/landscape/warp-near-miss.mp4"
+    )
+    expect(page.locator("#warp-video")).to_have_class("warp-video is-ready")
+    expect_cinematic_sfx(page, "buildup", "near-miss")
     near_miss_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
     assert near_miss_state["nearMiss"] is True
     assert near_miss_state["buildBest"] == "SSR"
     page.screenshot(path=str(ARTIFACTS / "astral-buildup-near-miss.png"))
     page.locator('[data-action="skip-build"]').click()
     expect(page.locator("#cinematic-reveal")).to_have_attribute("data-rarity", "ssr")
+    expect_cinematic_sfx(page, "reveal", "ssr")
 
     page.goto(BASE_URL)
     page.wait_for_load_state("networkidle")
     page.evaluate("document.fonts.ready")
     expect(page.get_by_text("ASTRAL REVERIE", exact=True)).to_be_visible()
     expect(page.locator("#view-banner")).to_be_visible()
+    expect(page.locator(".featured-rarity strong")).to_have_text("UR")
+    expect(page.locator(".rarity-seal span")).to_have_text("UR")
+    assert "rarity-chip-ur.webp" in page.locator(".featured-rarity").evaluate(
+        "element => getComputedStyle(element).backgroundImage"
+    )
+    assert page.evaluate("typeof window.Motion?.animate") == "function"
+    expect(page.locator("#bgm")).to_have_attribute("src", "./assets/audio/house-beyond-stars-loop.m4a")
     assert_images_loaded(page)
     assert_no_overflow(page, "desktop banner")
     page.locator("#dev-overlay").evaluate("element => element.hidden = true")
+    page.wait_for_timeout(950)
     page.screenshot(path=str(ARTIFACTS / "astral-desktop.png"), full_page=True)
 
     page.locator('.pull-console [data-action="pull-one"]').click()
+    assert page.evaluate("window.__ASTRAL_DEBUG__.getAudio().paused") is False
     expect(page.locator("#cinematic-buildup")).to_be_visible()
     expect(page.locator("#build-grade")).not_to_be_empty()
     page.wait_for_timeout(850)
@@ -139,8 +197,20 @@ with sync_playwright() as playwright:
 
     page.locator('[data-view="album"]').click()
     expect(page.locator("#view-album")).to_be_visible()
+    expect(page.locator(".album-tier")).to_have_count(32)
+    assert page.locator('.album-card[data-rarity="ur"] .album-tier').count() == 3
+    assert page.locator('.album-card[data-rarity="ssr"] .album-tier').count() == 6
+    assert "rarity-chip-ur.webp" in page.locator('.album-card[data-rarity="ur"] .album-tier').first.evaluate(
+        "element => getComputedStyle(element).backgroundImage"
+    )
+    assert "rarity-chip-ssr.webp" in page.locator('.album-card[data-rarity="ssr"] .album-tier').first.evaluate(
+        "element => getComputedStyle(element).backgroundImage"
+    )
+    assert page.locator(".album-rarity").all_inner_texts()[0].startswith("UR ·")
     assert page.locator(".album-card:not(.is-locked)").count() > 0
     assert page.locator(".album-card:not(.is-locked) img").count() == page.locator(".album-card:not(.is-locked)").count()
+    page.wait_for_timeout(650)
+    page.screenshot(path=str(ARTIFACTS / "astral-album.png"), full_page=True)
 
     page.locator('[data-view="stats"]').click()
     expect(page.locator("#view-stats")).to_be_visible()
@@ -170,10 +240,27 @@ with sync_playwright() as playwright:
     )
     page.screenshot(path=str(ARTIFACTS / "astral-mobile.png"), full_page=True)
 
+    page.locator('[data-view="album"]').click()
+    expect(page.locator("#view-album")).to_be_visible()
+    page.wait_for_timeout(950)
+    assert_no_overflow(page, "mobile album")
+    page.screenshot(path=str(ARTIFACTS / "astral-mobile-album.png"), full_page=True)
+    page.locator('[data-view="banner"]').click()
+    expect(page.locator("#view-banner")).to_be_visible()
+
     page.locator('.pull-console [data-action="pull-one"]').click()
     expect(page.locator("#cinematic-buildup")).to_be_visible()
+    mobile_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
+    mobile_slug = "near-miss" if mobile_state["nearMiss"] else mobile_state["buildBest"].lower()
+    expect(page.locator("#warp-video")).to_have_attribute(
+        "src", f"./assets/generated/cinematics/portrait/warp-{mobile_slug}.mp4"
+    )
+    expect(page.locator("#warp-video")).to_have_class("warp-video is-ready")
+    expect_cinematic_sfx(page, "buildup", mobile_slug)
     page.locator('[data-action="skip-build"]').click()
     expect(page.locator("#cinematic-reveal")).to_be_visible()
+    mobile_reveal = page.evaluate("window.__ASTRAL_DEBUG__.getState().results[0].rarity.toLowerCase()")
+    expect_cinematic_sfx(page, "reveal", mobile_reveal)
     page.wait_for_timeout(900)
     page.screenshot(path=str(ARTIFACTS / "astral-mobile-reveal.png"), full_page=True)
     page.locator('[data-action="advance-reveal"]').click(position={"x": 20, "y": 300})
@@ -199,4 +286,4 @@ with sync_playwright() as playwright:
     assert not console_errors, f"Console errors: {console_errors}"
     browser.close()
 
-print("Browser QA passed: all rarity buildups, near-miss, desktop, pull ×1, pull ×10, summary, album, stats, top-up, mobile, reduced motion")
+print("Browser QA passed: sampled cinematic SFX, all rarity buildups, near-miss, desktop, pull ×1, pull ×10, summary, album, stats, top-up, mobile, reduced motion")

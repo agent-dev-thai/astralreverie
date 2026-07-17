@@ -3,15 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A dependency-free, satirical gacha pull simulator.",
+  "description": "A satirical, cinematic gacha pull simulator.",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check app.js && node --check gacha-core.js && node --check logic.js && node --check strings.js",
-    "test": "node --test"
+    "check": "node --check server.mjs && node --check app.js && node --check cinematic-media.js && node --check cinematic-sfx.js && node --check gacha-core.js && node --check logic.js && node --check strings.js && node --check tools/generate_elevenlabs_sfx.mjs && node --check tools/process_elevenlabs_sfx.mjs",
+    "sfx:generate": "node tools/generate_elevenlabs_sfx.mjs",
+    "sfx:process": "node tools/process_elevenlabs_sfx.mjs",
+    "images:process": "python3 tools/process_runtime_images.py",
+    "vendor:motion": "cp node_modules/motion/dist/motion.js assets/vendor/motion-12.42.2.js && cp node_modules/motion/LICENSE.md assets/vendor/MOTION-LICENSE.md",
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.27.0"
+  "packageManager": "pnpm@10.27.0",
+  "dependencies": {
+    "motion": "12.42.2"
+  }
 }
-

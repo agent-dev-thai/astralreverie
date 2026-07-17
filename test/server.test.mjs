@@ -43,8 +43,62 @@ test("serves allowlisted generated assets", async () => {
   assert.ok(Number(response.headers.get("content-length")) > 0);
 });
 
+test("serves the vendored motion runtime, production music, and cinematics", async () => {
+  const motion = await fetch(`${baseUrl}/assets/vendor/motion-12.42.2.js`, { method: "HEAD" });
+  assert.equal(motion.status, 200);
+  assert.match(motion.headers.get("content-type"), /^text\/javascript/);
+
+  const music = await fetch(`${baseUrl}/assets/audio/house-beyond-stars-loop.m4a`, { method: "HEAD" });
+  assert.equal(music.status, 200);
+  assert.equal(music.headers.get("content-type"), "audio/mp4");
+  assert.ok(Number(music.headers.get("content-length")) > 0);
+
+  const cinematic = await fetch(`${baseUrl}/assets/generated/cinematics/landscape/warp-ur.mp4`, { method: "HEAD" });
+  assert.equal(cinematic.status, 200);
+  assert.equal(cinematic.headers.get("content-type"), "video/mp4");
+  assert.ok(Number(cinematic.headers.get("content-length")) > 0);
+
+  const chip = await fetch(`${baseUrl}/assets/generated/ui/rarity-chip-ssr.webp`, { method: "HEAD" });
+  assert.equal(chip.status, 200);
+  assert.equal(chip.headers.get("content-type"), "image/webp");
+  assert.ok(Number(chip.headers.get("content-length")) > 0);
+
+  const sfx = await fetch(`${baseUrl}/assets/audio/sfx/buildup-near-miss.m4a`, { method: "HEAD" });
+  assert.equal(sfx.status, 200);
+  assert.equal(sfx.headers.get("content-type"), "audio/mp4");
+  assert.ok(Number(sfx.headers.get("content-length")) > 0);
+});
+
+test("supports compressed text responses, cache validation, and media ranges", async () => {
+  const compressed = await fetch(`${baseUrl}/styles.css`, {
+    headers: { "Accept-Encoding": "br" },
+  });
+  assert.equal(compressed.status, 200);
+  assert.equal(compressed.headers.get("content-encoding"), "br");
+  assert.match(await compressed.text(), /\.feature-poster/);
+
+  const optimizedImage = await fetch(`${baseUrl}/assets/generated/optimized/astral-banner-768.webp`, {
+    method: "HEAD",
+  });
+  const etag = optimizedImage.headers.get("etag");
+  assert.ok(etag);
+  assert.match(optimizedImage.headers.get("cache-control"), /max-age=86400/);
+  const unchanged = await fetch(`${baseUrl}/assets/generated/optimized/astral-banner-768.webp`, {
+    headers: { "If-None-Match": etag },
+  });
+  assert.equal(unchanged.status, 304);
+
+  const range = await fetch(`${baseUrl}/assets/audio/house-beyond-stars-loop.m4a`, {
+    headers: { Range: "bytes=0-1023" },
+  });
+  assert.equal(range.status, 206);
+  assert.equal(range.headers.get("accept-ranges"), "bytes");
+  assert.match(range.headers.get("content-range"), /^bytes 0-1023\//);
+  assert.equal((await range.arrayBuffer()).byteLength, 1024);
+});
+
 test("does not expose repository-only files", async () => {
-  for (const pathname of ["/README.md", "/tools/qa_playwright.py", "/assets/OFL-Unbounded.txt"]) {
+  for (const pathname of ["/README.md", "/tools/qa_playwright.py", "/assets/OFL-Unbounded.txt", "/assets/vendor/MOTION-LICENSE.md"]) {
     const response = await fetch(`${baseUrl}${pathname}`);
     assert.equal(response.status, 404, pathname);
   }
