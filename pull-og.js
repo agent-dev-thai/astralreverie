@@ -1,16 +1,22 @@
 import { fileURLToPath } from "node:url";
 import { resolve, sep } from "node:path";
 
-import sharp from "sharp";
-
 import { RARITY_ORDER } from "./gacha-core.js";
 
-export const PULL_OG_PATH = "/og/pull-v1.jpg";
+export const PULL_OG_PATH = "/og/pull-v2.jpg";
 export const PULL_OG_WIDTH = 1200;
 export const PULL_OG_HEIGHT = 630;
 
 const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ASSETS_DIR = resolve(ROOT_DIR, "assets");
+const FONTCONFIG_DIR = resolve(ASSETS_DIR, "fonts/fontconfig");
+
+// Sharp uses fontconfig for SVG text and server images may not ship any fonts.
+// Configure the bundled faces before Sharp initializes, while preserving an
+// explicit operator override for environments with their own font setup.
+process.env.FONTCONFIG_PATH ??= FONTCONFIG_DIR;
+const { default: sharp } = await import("sharp");
+
 const BACKGROUND_PATH = resolve(ASSETS_DIR, "generated/astral-banner.png");
 const LOGO_PATH = resolve(ASSETS_DIR, "generated/share/astral-reverie-logo.png");
 const PREMIUM_CHIP_PATHS = Object.freeze({
@@ -83,7 +89,7 @@ function premiumChipLabelSvg(rarity, width, label = rarity) {
   const fontSize = width >= 200 ? 21 : width >= 120 ? 18 : 12;
   return Buffer.from(`
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <text x="${width / 2}" y="${height / 2 + fontSize * 0.34}" text-anchor="middle" fill="#fff8ed" stroke="#160b17" stroke-width="1.5" paint-order="stroke" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="1.5">${escapeXml(label)}</text>
+      <text x="${width / 2}" y="${height / 2 + fontSize * 0.34}" text-anchor="middle" fill="#fff8ed" stroke="#160b17" stroke-width="1.5" paint-order="stroke" font-family="Geologica, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="1.5">${escapeXml(label)}</text>
     </svg>`);
 }
 
@@ -97,7 +103,7 @@ function cardFrameSvg(item, width, height, artHeight, compact) {
   const borderWidth = ["SSR", "UR"].includes(item.rarity) ? 4 : 2;
   const rarityBadge = PREMIUM_CHIP_PATHS[item.rarity] ? "" : `
       <rect x="${width - (compact ? 48 : 72)}" y="8" width="${compact ? 40 : 60}" height="${compact ? 21 : 30}" rx="3" fill="#100b16" fill-opacity="0.9" stroke="${tone}"/>
-      <text x="${width - (compact ? 28 : 42)}" y="${compact ? 23 : 30}" text-anchor="middle" fill="${tone}" font-family="Arial, sans-serif" font-size="${compact ? 11 : 16}" font-weight="700">${escapeXml(item.rarity)}</text>`;
+      <text x="${width - (compact ? 28 : 42)}" y="${compact ? 23 : 30}" text-anchor="middle" fill="${tone}" font-family="Geologica, sans-serif" font-size="${compact ? 11 : 16}" font-weight="700">${escapeXml(item.rarity)}</text>`;
   return Buffer.from(`
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
       <defs>
@@ -109,8 +115,8 @@ function cardFrameSvg(item, width, height, artHeight, compact) {
       <rect x="0" y="${artHeight}" width="${width}" height="${height - artHeight}" fill="url(#label)"/>
       <rect x="${borderWidth / 2}" y="${borderWidth / 2}" width="${width - borderWidth}" height="${height - borderWidth}" fill="none" stroke="${tone}" stroke-width="${borderWidth}"/>
       ${rarityBadge}
-      <text x="${compact ? 9 : 14}" y="${nameY}" fill="#f7f0e5" font-family="Arial, sans-serif" font-size="${nameSize}" font-weight="700">${name}</text>
-      <text x="${compact ? 9 : 14}" y="${rarityY}" fill="${tone}" font-family="Arial, sans-serif" font-size="${raritySize}" font-weight="700" letter-spacing="1.4">${escapeXml(item.rarity)} SIGNAL</text>
+      <text x="${compact ? 9 : 14}" y="${nameY}" fill="#f7f0e5" font-family="Geologica, sans-serif" font-size="${nameSize}" font-weight="700">${name}</text>
+      <text x="${compact ? 9 : 14}" y="${rarityY}" fill="${tone}" font-family="Geologica, sans-serif" font-size="${raritySize}" font-weight="700" letter-spacing="1.4">${escapeXml(item.rarity)} SIGNAL</text>
     </svg>`);
 }
 
@@ -170,13 +176,13 @@ function sceneSvg(results, bestRarity) {
       <rect width="1200" height="630" fill="url(#shade)"/>
       <rect width="1200" height="630" fill="url(#signal)"/>
       <path d="M760 -60 L1210 390 M840 -80 L1220 300" stroke="${tone}" stroke-opacity="0.12" stroke-width="2"/>
-      <text x="142" y="56" fill="#f7f0e5" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="2">ASTRAL REVERIE</text>
-      <text x="142" y="84" fill="#f4b63e" font-family="Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="2.2">SHARED TRANSMISSION</text>
-      <text x="1140" y="59" text-anchor="end" fill="${tone}" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="1.6">${escapeXml(bestRarity)} · ${countLabel}</text>
+      <text x="142" y="56" fill="#f7f0e5" font-family="Geologica, sans-serif" font-size="29" font-weight="700" letter-spacing="2">ASTRAL REVERIE</text>
+      <text x="142" y="84" fill="#f4b63e" font-family="Geologica, sans-serif" font-size="14" font-weight="700" letter-spacing="2.2">SHARED TRANSMISSION</text>
+      <text x="1140" y="59" text-anchor="end" fill="${tone}" font-family="Geologica, sans-serif" font-size="18" font-weight="700" letter-spacing="1.6">${escapeXml(bestRarity)} · ${countLabel}</text>
       <line x1="58" y1="108" x2="1142" y2="108" stroke="#6a4d66" stroke-width="2"/>
       <line x1="58" y1="580" x2="1142" y2="580" stroke="#6a4d66" stroke-width="2"/>
-      <text x="58" y="610" fill="#f4b63e" font-family="Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="1.2">OPEN THE SIGNAL →</text>
-      <text x="1142" y="610" text-anchor="end" fill="#b7a9bd" font-family="Arial, sans-serif" font-size="15">Cinematic pulls · zero real money</text>
+      <text x="58" y="610" fill="#f4b63e" font-family="Geologica, sans-serif" font-size="17" font-weight="700" letter-spacing="1.2">OPEN THE SIGNAL →</text>
+      <text x="1142" y="610" text-anchor="end" fill="#b7a9bd" font-family="Geologica, sans-serif" font-size="15">Cinematic pulls · zero real money</text>
     </svg>`);
 }
 

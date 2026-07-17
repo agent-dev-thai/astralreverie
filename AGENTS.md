@@ -16,7 +16,7 @@ This is a static web app with no compilation step. `index.html` owns the page st
 
 Gacha rules are isolated in `gacha-core.js`; player-visible text, item definitions, rarity metadata, and top-up packages live in `strings.js`. Persisted simulator state uses the `gachasim-v1` localStorage key. `logic.js` is only the single-player deployment stub.
 
-`pull-share.js` owns the versioned public result token. Shared links may contain only allowlisted card IDs and must hydrate a read-only summary without changing local gems, pity, ownership, or history; malformed or unsupported tokens fall back to the normal app. `pull-og.js` renders the exact shared cards into bounded, cached 1200×630 JPEGs and reuses the generated SSR/UR crest assets. Its `/og/pull-v1.jpg` path is a cache version: bump it whenever the composition changes after launch.
+`pull-share.js` owns the versioned public result token. Shared links may contain only allowlisted card IDs and must hydrate a read-only summary without changing local gems, pity, ownership, or history; malformed or unsupported tokens fall back to the normal app. `pull-og.js` renders the exact shared cards into bounded, cached 1200×630 JPEGs and reuses the generated SSR/UR crest assets. Its `/og/pull-v2.jpg` path is a cache version: bump it whenever the composition changes after launch.
 
 `cinematic-media.js` isolates the six Higgsfield treatments from game state; the existing WebP/CSS sequence remains the playback fallback. `cinematic-sfx.js` loads the ElevenLabs buildup/reveal samples after the critical page load and routes them through the existing SFX bus while oscillator synthesis remains the failure fallback. The Suno background loop stays on its own music bus so one-shot assets do not change music control.
 

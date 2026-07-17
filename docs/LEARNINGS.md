@@ -32,9 +32,17 @@ Key takeaway: keep visible OG content and the search canonical generic, but rend
 
 ### Version immutable generated social-image routes
 
-Shared-pull JPEGs are safe to cache for a year because the token is content-addressed, but Facebook and CDN caches can retain an old composition just as aggressively. A layout change under the same `/og/pull-v1.jpg` URL may therefore remain stale after deployment.
+Shared-pull JPEGs are safe to cache for a year because the token is content-addressed, but Facebook and CDN caches can retain an old composition just as aggressively. A layout change under the same `/og/pull-vN.jpg` URL may therefore remain stale after deployment.
 
-Key takeaway: treat the renderer path as a visual schema version and bump `pull-v1` whenever the generated composition changes after launch.
+Key takeaway: treat the renderer path as a visual schema version and increment `pull-vN` whenever the generated composition changes after launch.
+
+### Bundle Fontconfig for server-rendered SVG text
+
+Sharp delegates SVG text rendering to Fontconfig. Minimal deployment images can therefore turn every label into tofu squares even when the same renderer works locally; embedded SVG fonts are not supported by Sharp.
+
+Configure `FONTCONFIG_PATH` before importing Sharp and point it at a checked-in `fonts.conf` that discovers the shipped font files.
+
+Key takeaway: every server-rendered social image must resolve fonts from repository assets, never from the host operating system.
 
 ### Decode the resolved pull during the cinematic gap
 

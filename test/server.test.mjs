@@ -53,7 +53,7 @@ test("renders absolute social metadata from the deployment origin", async () => 
   });
   const sharedHtml = await sharedResponse.text();
   assert.match(sharedHtml, /property="og:url" content="https:\/\/gacha\.example\/\?pull=v1\.seren\.rock"/);
-  assert.match(sharedHtml, /property="og:image" content="https:\/\/gacha\.example\/og\/pull-v1\.jpg\?pull=v1\.seren\.rock"/);
+  assert.match(sharedHtml, /property="og:image" content="https:\/\/gacha\.example\/og\/pull-v2\.jpg\?pull=v1\.seren\.rock"/);
   assert.match(sharedHtml, /property="og:image:alt" content="Astral Reverie shared pull showing Seren, Suspicious Rock\."/);
   assert.match(sharedHtml, /rel="canonical" href="https:\/\/gacha\.example\/"/);
   assert.doesNotMatch(sharedHtml, /[?&]auto=/);
@@ -66,19 +66,19 @@ test("renders absolute social metadata from the deployment origin", async () => 
   });
   assert.match(await invalidResponse.text(), /property="og:url" content="https:\/\/gacha\.example\/"/);
 
-  const dynamicPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.seren.rock`);
+  const dynamicPreview = await fetch(`${baseUrl}/og/pull-v2.jpg?pull=v1.seren.rock`);
   assert.equal(dynamicPreview.status, 200);
   assert.equal(dynamicPreview.headers.get("content-type"), "image/jpeg");
   assert.match(dynamicPreview.headers.get("cache-control"), /immutable/);
   assert.ok(Number(dynamicPreview.headers.get("content-length")) > 50000);
   const dynamicEtag = dynamicPreview.headers.get("etag");
   assert.ok(dynamicEtag);
-  const unchangedDynamicPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.seren.rock`, {
+  const unchangedDynamicPreview = await fetch(`${baseUrl}/og/pull-v2.jpg?pull=v1.seren.rock`, {
     headers: { "If-None-Match": dynamicEtag },
   });
   assert.equal(unchangedDynamicPreview.status, 304);
 
-  const missingPreview = await fetch(`${baseUrl}/og/pull-v1.jpg?pull=v1.unknown`);
+  const missingPreview = await fetch(`${baseUrl}/og/pull-v2.jpg?pull=v1.unknown`);
   assert.equal(missingPreview.status, 404);
 
   const preview = await fetch(`${baseUrl}/assets/generated/share/astral-reverie-og.jpg`, { method: "HEAD" });

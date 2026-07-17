@@ -44,7 +44,7 @@ def expect_cinematic_sfx(page, kind, key):
 
 def expect_pull_og(page, shared_url, artifact_name):
     expected_image_url = shared_url.replace(
-        "/?pull=", "/og/pull-v1.jpg?pull=", 1
+        "/?pull=", "/og/pull-v2.jpg?pull=", 1
     )
     expect(page.locator('meta[property="og:image"]')).to_have_attribute(
         "content", expected_image_url
