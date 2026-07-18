@@ -1,6 +1,7 @@
 import { ITEMS, PACKAGES, PULL_FEEDBACK, RARITY, SNARK, STR } from "./strings.js";
 import { GACHA_CONFIG, normalizeSeed, pullBatch, RARITY_ORDER } from "./gacha-core.js";
 import { decodePullShareToken, encodePullShareToken } from "./pull-share.js";
+import { analytics } from "./analytics.js";
 import {
   CINEMATIC_PRESENTATIONS,
   getCinematicPresentation,
@@ -129,6 +130,15 @@ function presentedBuildRarity() {
   return getCinematicPresentation(state.buildBest, state.nearMiss).rarity;
 }
 
+function orderResultsForReveal(results, bestRarity) {
+  const ordered = results.slice();
+  const bestIndex = ordered.findIndex(item => item.rarity === bestRarity);
+  if (bestIndex <= 0) return ordered;
+  const [bestResult] = ordered.splice(bestIndex, 1);
+  ordered.unshift(bestResult);
+  return ordered;
+}
+
 function preloadRarityWarps() {
   const posters = new Set(Object.values(CINEMATIC_PRESENTATIONS).map(({ poster }) => poster));
   posters.forEach(poster => {
@@ -232,6 +242,11 @@ const dom = {
   revealCard: document.querySelector("#reveal-card"),
   revealAll: document.querySelector(".reveal-all"),
   summaryGrid: document.querySelector("#summary-grid"),
+  summaryPosition: document.querySelector("#summary-position"),
+  summaryAnnouncement: document.querySelector("#summary-announcement"),
+  summaryPagination: document.querySelector("#summary-pagination"),
+  summaryPrevious: document.querySelector(".summary-arrow-prev"),
+  summaryNext: document.querySelector(".summary-arrow-next"),
   summaryKicker: document.querySelector("#summary-kicker"),
   summaryGrade: document.querySelector("#summary-grade"),
   summarySnark: document.querySelector("#summary-snark"),
@@ -267,6 +282,13 @@ let musicDucked = false;
 let cinematicMotion = null;
 let lastCinematicFrame = "";
 let sheetTransitionId = 0;
+let summaryActiveIndex = 0;
+let summaryScrollFrame = 0;
+let summaryRenderFrame = 0;
+let summaryScrollSettleTimer = 0;
+let summaryAnnouncementTimer = 0;
+let summaryProgrammaticScroll = false;
+let summaryAnnouncedIndex = -1;
 
 function hydrateStrings() {
   document.title = sharedPullActive ? STR.sharedMetaTitle : STR.metaTitle;
@@ -477,10 +499,17 @@ function animateCurrentView(panel) {
 
 function showView(view) {
   if (!document.querySelector(`[data-view-panel="${view}"]`)) return;
+  const previousView = state.screen;
   state.screen = view;
   syncView();
   animateCurrentView(document.querySelector(`[data-view-panel="${view}"]`));
   scrollTo({ top: 0, behavior: reducedMotionQuery.matches ? "auto" : "smooth" });
+  if (view !== previousView) {
+    analytics.track("screen_view", {
+      app_name: STR.appName,
+      screen_name: view,
+    });
+  }
 }
 
 function openTopup() {
@@ -754,7 +783,7 @@ function animateRevealChrome() {
 function animateSummaryResults() {
   if (!canUseMotion()) return;
   stopCinematicMotion();
-  const cards = Array.from(dom.summaryGrid.querySelectorAll(".summary-card"));
+  const cards = Array.from(dom.summaryGrid.querySelectorAll(".summary-card-frame"));
   motionApi.animate(cards, {
     opacity: [0, 1],
     y: [18, 0],
@@ -798,15 +827,29 @@ function startPull(count, autoReveal = false) {
 
   closeTopup();
   const pulled = pullBatch(state, count, ITEMS);
+  const revealResults = orderResultsForReveal(pulled.results, pulled.best);
   Object.assign(state, pulled.next, {
     gems: state.gems - cost,
     sessionPulls: state.sessionPulls + count,
     phase: "buildup",
-    results: pulled.results,
+    results: revealResults,
     revealIndex: 0,
     nearMiss: pulled.nearMiss,
     buildBest: pulled.best,
     autoReveal,
+  });
+  const rarityCounts = revealResults.reduce((counts, item) => {
+    counts[item.rarity] = (counts[item.rarity] || 0) + 1;
+    return counts;
+  }, {});
+  analytics.track("gacha_pull", {
+    auto_reveal: autoReveal ? 1 : 0,
+    best_rarity: pulled.best,
+    near_miss: pulled.nearMiss ? 1 : 0,
+    new_count: revealResults.filter(item => item.isNew).length,
+    pull_count: count,
+    ssr_count: rarityCounts.SSR || 0,
+    ur_count: rarityCounts.UR || 0,
   });
   pullArtPromises = preloadPullArt(state.results);
   persist();
@@ -890,6 +933,17 @@ function endPull() {
   state.autoReveal = false;
   pullArtPromises = [];
   artTransitionPending = false;
+  cancelAnimationFrame(summaryScrollFrame);
+  cancelAnimationFrame(summaryRenderFrame);
+  clearTimeout(summaryScrollSettleTimer);
+  clearTimeout(summaryAnnouncementTimer);
+  summaryScrollFrame = 0;
+  summaryRenderFrame = 0;
+  summaryScrollSettleTimer = 0;
+  summaryAnnouncementTimer = 0;
+  summaryProgrammaticScroll = false;
+  summaryAnnouncedIndex = -1;
+  summaryActiveIndex = 0;
   if (sharedPullActive) {
     sharedPullActive = false;
     removePullFromLocation();
@@ -925,9 +979,141 @@ function renderRevealCard(item) {
   dom.reveal.classList.add("is-casting");
 }
 
+function summaryCards() {
+  return Array.from(dom.summaryGrid.querySelectorAll(".summary-card"));
+}
+
+function announceSummaryIndex(index) {
+  const item = state.results[index];
+  if (!item || index === summaryAnnouncedIndex) return;
+  summaryAnnouncedIndex = index;
+  dom.summaryAnnouncement.textContent = STR.summaryAnnouncement(
+    index + 1,
+    state.results.length,
+    item.name,
+    RARITY[item.rarity].label,
+  );
+}
+
+function ensureSummaryMarkerVisible(marker) {
+  if (!marker || dom.summaryPagination.scrollWidth <= dom.summaryPagination.clientWidth) return;
+  const markerLeft = marker.offsetLeft;
+  const markerRight = markerLeft + marker.offsetWidth;
+  const viewportLeft = dom.summaryPagination.scrollLeft;
+  const viewportRight = viewportLeft + dom.summaryPagination.clientWidth;
+  if (markerLeft < viewportLeft) dom.summaryPagination.scrollLeft = markerLeft;
+  else if (markerRight > viewportRight) {
+    dom.summaryPagination.scrollLeft = markerRight - dom.summaryPagination.clientWidth;
+  }
+}
+
+function setSummaryActiveIndex(index, announce = true) {
+  const cards = summaryCards();
+  if (!cards.length) return;
+  const nextIndex = Math.max(0, Math.min(index, cards.length - 1));
+  summaryActiveIndex = nextIndex;
+
+  cards.forEach((card, cardIndex) => {
+    const active = cardIndex === nextIndex;
+    card.classList.toggle("is-active", active);
+    if (active) card.setAttribute("aria-current", "true");
+    else card.removeAttribute("aria-current");
+  });
+
+  const markers = Array.from(dom.summaryPagination.querySelectorAll(".summary-marker"));
+  markers.forEach((marker, markerIndex) => {
+    const active = markerIndex === nextIndex;
+    marker.classList.toggle("is-active", active);
+    marker.setAttribute("aria-pressed", String(active));
+  });
+
+  dom.summaryPosition.textContent = STR.summaryPosition(nextIndex + 1, cards.length);
+  dom.summaryPrevious.disabled = nextIndex === 0;
+  dom.summaryNext.disabled = nextIndex === cards.length - 1;
+  ensureSummaryMarkerVisible(markers[nextIndex]);
+  if (announce) announceSummaryIndex(nextIndex);
+}
+
+function summaryScrollTarget(card) {
+  const desired = card.offsetLeft - (dom.summaryGrid.clientWidth - card.offsetWidth) / 2;
+  return Math.max(0, Math.min(desired, dom.summaryGrid.scrollWidth - dom.summaryGrid.clientWidth));
+}
+
+function goToSummaryIndex(index, behavior = reducedMotionQuery.matches ? "auto" : "smooth") {
+  const cards = summaryCards();
+  if (!cards.length) return;
+  const nextIndex = Math.max(0, Math.min(index, cards.length - 1));
+  const left = summaryScrollTarget(cards[nextIndex]);
+  setSummaryActiveIndex(nextIndex);
+  clearTimeout(summaryScrollSettleTimer);
+  if (behavior === "auto" || Math.abs(dom.summaryGrid.scrollLeft - left) < 1) {
+    summaryProgrammaticScroll = false;
+    dom.summaryGrid.scrollLeft = left;
+    return;
+  }
+  summaryProgrammaticScroll = true;
+  dom.summaryGrid.scrollTo({ left, behavior });
+  summaryScrollSettleTimer = window.setTimeout(settleSummaryProgrammaticScroll, 1000);
+}
+
+function syncSummaryIndexFromScroll() {
+  summaryScrollFrame = 0;
+  if (summaryProgrammaticScroll) return;
+  const cards = summaryCards();
+  if (!cards.length) return;
+  const viewportCenter = dom.summaryGrid.scrollLeft + dom.summaryGrid.clientWidth / 2;
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  cards.forEach((card, index) => {
+    const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+    const distance = Math.abs(cardCenter - viewportCenter);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+  setSummaryActiveIndex(nearestIndex, false);
+  clearTimeout(summaryAnnouncementTimer);
+  summaryAnnouncementTimer = window.setTimeout(() => {
+    summaryAnnouncementTimer = 0;
+    announceSummaryIndex(summaryActiveIndex);
+  }, 140);
+}
+
+function queueSummaryScrollSync() {
+  if (summaryProgrammaticScroll || summaryScrollFrame) return;
+  summaryScrollFrame = requestAnimationFrame(syncSummaryIndexFromScroll);
+}
+
+function settleSummaryProgrammaticScroll() {
+  if (!summaryProgrammaticScroll) return;
+  clearTimeout(summaryScrollSettleTimer);
+  summaryScrollSettleTimer = 0;
+  summaryProgrammaticScroll = false;
+  syncSummaryIndexFromScroll();
+}
+
+function releaseSummaryScrollToPointer() {
+  clearTimeout(summaryScrollSettleTimer);
+  summaryScrollSettleTimer = 0;
+  summaryProgrammaticScroll = false;
+  queueSummaryScrollSync();
+}
+
+function queueSummaryRecenter() {
+  if (state.phase !== "summary") return;
+  cancelAnimationFrame(summaryRenderFrame);
+  summaryRenderFrame = requestAnimationFrame(() => {
+    summaryRenderFrame = 0;
+    goToSummaryIndex(summaryActiveIndex, "auto");
+  });
+}
+
 function renderSummary() {
   const feedback = PULL_FEEDBACK[state.buildBest];
+  const featuredIndex = Math.max(0, state.results.findIndex(item => item.rarity === state.buildBest));
   dom.summary.classList.toggle("is-single", state.results.length === 1);
+  dom.summary.classList.toggle("is-shared", sharedPullActive);
   dom.summary.dataset.rarity = state.buildBest.toLowerCase();
   dom.summary.style.setProperty("--summary-tone", TONE[state.buildBest]);
   dom.summaryGrade.textContent = feedback.verdict;
@@ -940,16 +1126,37 @@ function renderSummary() {
     "aria-label",
     `${dom.summaryShare.textContent} to Facebook`,
   );
-  dom.summaryGrid.innerHTML = state.results.map(item => {
+  dom.summaryPagination.setAttribute("aria-label", STR.summaryPaginationAria);
+  dom.summaryPrevious.hidden = state.results.length <= 1;
+  dom.summaryNext.hidden = state.results.length <= 1;
+  dom.summaryPagination.hidden = state.results.length <= 1;
+  dom.summaryGrid.innerHTML = state.results.map((item, index) => {
     const rarity = RARITY[item.rarity];
-    return `<article class="summary-card" data-rarity="${item.rarity.toLowerCase()}" style="--card-tone:${TONE[item.rarity]};--card-bg:${cardBackground(item.rarity)}">
-      ${item.isNew ? `<span class="new-chip">${escapeHtml(STR.newBadge)}</span>` : ""}
-      ${premiumTierChip(item.rarity)}
-      ${itemArt(item)}
-      <strong class="summary-name">${escapeHtml(item.name)}</strong>
-      <span class="summary-rarity">${escapeHtml(rarity.label)}</span>
+    const active = index === featuredIndex;
+    return `<article class="summary-card${active ? " is-active" : ""}" data-summary-index="${index}" data-rarity="${item.rarity.toLowerCase()}" role="group" aria-roledescription="slide" aria-label="${escapeHtml(STR.summaryCardAria(index + 1, state.results.length, item.name, rarity.label))}"${active ? ' aria-current="true"' : ""} style="--card-tone:${TONE[item.rarity]};--card-bg:${cardBackground(item.rarity)}">
+      <div class="summary-card-frame">
+        ${item.isNew ? `<span class="new-chip">${escapeHtml(STR.newBadge)}</span>` : ""}
+        ${premiumTierChip(item.rarity)}
+        ${itemArt(item)}
+        <div class="summary-card-copy">
+          ${index === featuredIndex && state.results.length > 1 ? `<span class="summary-best">${escapeHtml(STR.summaryBestLabel)}</span>` : ""}
+          <strong class="summary-name">${escapeHtml(item.name)}</strong>
+          <span class="summary-title">${escapeHtml(item.title)}</span>
+          <span class="summary-rarity">${escapeHtml(rarity.stars)} · ${escapeHtml(rarity.label)}</span>
+        </div>
+      </div>
     </article>`;
   }).join("");
+  dom.summaryPagination.innerHTML = state.results.map((item, index) => (
+    `<button type="button" class="summary-marker${index === featuredIndex ? " is-active" : ""}" data-action="summary-go" data-summary-index="${index}" aria-label="${escapeHtml(STR.summaryMarkerAria(index + 1, state.results.length, item.name))}" aria-pressed="${index === featuredIndex}" style="--marker-tone:${TONE[item.rarity]}"><span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span></button>`
+  )).join("");
+  summaryAnnouncedIndex = -1;
+  setSummaryActiveIndex(featuredIndex);
+  cancelAnimationFrame(summaryRenderFrame);
+  summaryRenderFrame = requestAnimationFrame(() => {
+    summaryRenderFrame = 0;
+    goToSummaryIndex(featuredIndex, "auto");
+  });
   dom.summarySnark.textContent = feedback.summary;
 }
 
@@ -1016,6 +1223,10 @@ function buyPackage(index) {
   renderStats();
   sfxTick();
   showToast(STR.topupToast(pack.gems, pack.price));
+  analytics.track("simulated_top_up", {
+    package_gems: pack.gems,
+    package_tier: index + 1,
+  });
 }
 
 function resetAll() {
@@ -1096,6 +1307,12 @@ function shareToFacebook() {
     return;
   }
   popup.opener = null;
+  analytics.track("share", {
+    content_type: state.phase === "summary"
+      ? state.results.length === 1 ? "card" : "ten_pull"
+      : state.phase === "reveal" ? "card" : "homepage",
+    method: "Facebook",
+  });
   if (sharedResultsAtOpen) closeSummaryWhenSharePopupCloses(popup, sharedResultsAtOpen);
 }
 
@@ -1124,6 +1341,9 @@ function handleAction(action, target) {
   else if (action === "skip-build") startReveal();
   else if (action === "advance-reveal") advanceReveal();
   else if (action === "reveal-all") showSummary();
+  else if (action === "summary-prev") goToSummaryIndex(summaryActiveIndex - 1);
+  else if (action === "summary-next") goToSummaryIndex(summaryActiveIndex + 1);
+  else if (action === "summary-go") goToSummaryIndex(Number(target.dataset.summaryIndex));
   else if (action === "collect") endPull();
   else if (action === "share-facebook") shareToFacebook();
   else if (action === "buy-package") buyPackage(Number(target.dataset.package));
@@ -1144,6 +1364,8 @@ document.addEventListener("click", event => {
 });
 
 dom.sheetScrim.addEventListener("click", closeTopup);
+dom.summaryGrid.addEventListener("scroll", queueSummaryScrollSync, { passive: true });
+dom.summaryGrid.addEventListener("pointerdown", releaseSummaryScrollToPointer, { passive: true });
 
 addEventListener("keydown", event => {
   if (event.repeat) return;
@@ -1151,6 +1373,19 @@ addEventListener("keydown", event => {
     event.preventDefault();
     handleEscape();
     return;
+  }
+  if (state.phase === "summary" && event.target.closest?.("#summary-grid")) {
+    const navigation = {
+      ArrowLeft: summaryActiveIndex - 1,
+      ArrowRight: summaryActiveIndex + 1,
+      Home: 0,
+      End: state.results.length - 1,
+    };
+    if (event.code in navigation) {
+      event.preventDefault();
+      goToSummaryIndex(navigation[event.code]);
+      return;
+    }
   }
   if (event.target.closest?.("button") && ["Space", "Enter"].includes(event.code)) return;
   if (event.code === "Digit1" && !state.phase) {
@@ -1167,7 +1402,7 @@ addEventListener("keydown", event => {
   }
 });
 
-const gamepadPrevious = { a: false, b: false, x: false };
+const gamepadPrevious = { a: false, b: false, x: false, left: false, right: false };
 
 function pollGamepad() {
   const pads = navigator.getGamepads?.() || [];
@@ -1177,6 +1412,8 @@ function pollGamepad() {
     a: Boolean(pad.buttons[0]?.pressed),
     b: Boolean(pad.buttons[1]?.pressed),
     x: Boolean(pad.buttons[2]?.pressed),
+    left: Boolean(pad.buttons[14]?.pressed),
+    right: Boolean(pad.buttons[15]?.pressed),
   };
   if (current.a && !gamepadPrevious.a) {
     if (state.phase === "buildup") startReveal();
@@ -1186,6 +1423,8 @@ function pollGamepad() {
   }
   if (current.x && !gamepadPrevious.x && !state.phase) startPull(1);
   if (current.b && !gamepadPrevious.b) handleEscape();
+  if (state.phase === "summary" && current.left && !gamepadPrevious.left) goToSummaryIndex(summaryActiveIndex - 1);
+  if (state.phase === "summary" && current.right && !gamepadPrevious.right) goToSummaryIndex(summaryActiveIndex + 1);
   Object.assign(gamepadPrevious, current);
 }
 
@@ -1235,6 +1474,8 @@ function drawConstellations() {
 
 addEventListener("resize", resizeCanvas);
 addEventListener("orientationchange", resizeCanvas);
+addEventListener("resize", queueSummaryRecenter);
+addEventListener("orientationchange", queueSummaryRecenter);
 resizeCanvas();
 
 const STEP = 1000 / 60;
@@ -1286,6 +1527,13 @@ document.addEventListener("visibilitychange", () => {
 });
 
 hydrateStrings();
+analytics.initialize({ disabled: devMode });
+if (sharedPullActive) {
+  analytics.track("shared_result_viewed", {
+    best_rarity: state.buildBest,
+    pull_count: state.results.length,
+  });
+}
 renderPackages();
 if (sharedPullActive) pullArtPromises = preloadPullArt(state.results);
 renderAll();

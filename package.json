@@ -1,18 +1,27 @@
 {
   "name": "fake-gacha",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-dev-thai/fake-gacha.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agent-dev-thai/fake-gacha/issues"
+  },
+  "homepage": "https://github.com/agent-dev-thai/fake-gacha#readme",
   "type": "module",
   "description": "A satirical, cinematic gacha pull simulator.",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check app.js && node --check cinematic-media.js && node --check cinematic-sfx.js && node --check gacha-core.js && node --check logic.js && node --check pull-og.js && node --check pull-share.js && node --check strings.js && node --check tools/generate_elevenlabs_sfx.mjs && node --check tools/process_elevenlabs_sfx.mjs && node --check tools/process_legacy_card_art.mjs",
+    "check": "node --check server.mjs && node --check analytics.js && node --check app.js && node --check cinematic-media.js && node --check cinematic-sfx.js && node --check gacha-core.js && node --check logic.js && node --check pull-og.js && node --check pull-share.js && node --check strings.js && node --check tools/generate_elevenlabs_sfx.mjs && node --check tools/process_elevenlabs_sfx.mjs && node --check tools/process_legacy_card_art.mjs && node --check tools/vendor_motion.mjs",
     "sfx:generate": "node tools/generate_elevenlabs_sfx.mjs",
     "sfx:process": "node tools/process_elevenlabs_sfx.mjs",
     "images:process": "python3 tools/process_runtime_images.py",
     "images:legacy-cards": "node tools/process_legacy_card_art.mjs",
     "share:assets": "python3 tools/process_share_assets.py",
-    "vendor:motion": "cp node_modules/motion/dist/motion.js assets/vendor/motion-12.42.2.js && cp node_modules/motion/LICENSE.md assets/vendor/MOTION-LICENSE.md",
+    "vendor:motion": "node tools/vendor_motion.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {

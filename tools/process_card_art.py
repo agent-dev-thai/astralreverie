@@ -1,9 +1,13 @@
+import argparse
+import os
+import tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 
-SOURCE = Path("/private/tmp/gacha-card-art")
-DESTINATION = Path("assets/generated/card-art")
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SOURCE = ROOT / "tmp/gacha-card-art"
+DEFAULT_DESTINATION = ROOT / "assets/generated/card-art"
 CARD_SIZE = (720, 900)
 
 CHARACTERS = [
@@ -29,7 +33,7 @@ def prepare_card(source: Image.Image) -> Image.Image:
     return backdrop
 
 
-def build_contact_sheet(ids: list[str], destination: Path, columns: int) -> None:
+def build_contact_sheet(ids: list[str], cards: Path, destination: Path, columns: int) -> None:
     thumb_size = (180, 225)
     label_height = 28
     rows = (len(ids) + columns - 1) // columns
@@ -37,7 +41,7 @@ def build_contact_sheet(ids: list[str], destination: Path, columns: int) -> None
     draw = ImageDraw.Draw(sheet)
 
     for index, asset_id in enumerate(ids):
-        card = Image.open(DESTINATION / f"{asset_id}.webp").convert("RGB")
+        card = Image.open(cards / f"{asset_id}.webp").convert("RGB")
         card.thumbnail(thumb_size, Image.Resampling.LANCZOS)
         x = (index % columns) * thumb_size[0]
         y = (index // columns) * (thumb_size[1] + label_height)
@@ -47,18 +51,52 @@ def build_contact_sheet(ids: list[str], destination: Path, columns: int) -> None
     sheet.save(destination, "JPEG", quality=88, optimize=True)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build runtime WebP card art from source PNG files.")
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=Path(os.environ.get("GACHA_CARD_ART_SOURCE", DEFAULT_SOURCE)),
+        help="Directory containing <card-id>.png sources (or set GACHA_CARD_ART_SOURCE).",
+    )
+    parser.add_argument("--destination", type=Path, default=DEFAULT_DESTINATION)
+    parser.add_argument(
+        "--artifacts-dir",
+        type=Path,
+        default=Path(os.environ.get("GACHA_ARTIFACTS_DIR", tempfile.gettempdir())),
+        help="Directory for contact-sheet previews.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    DESTINATION.mkdir(parents=True, exist_ok=True)
+    args = parse_args()
+    missing = [asset_id for asset_id in CHARACTERS + OBJECTS if not (args.source / f"{asset_id}.png").is_file()]
+    if missing:
+        raise SystemExit(f"Missing {len(missing)} source PNGs in {args.source}: {', '.join(missing)}")
+
+    args.destination.mkdir(parents=True, exist_ok=True)
+    args.artifacts_dir.mkdir(parents=True, exist_ok=True)
     for asset_id in CHARACTERS + OBJECTS:
-        source_path = SOURCE / f"{asset_id}.png"
-        destination_path = DESTINATION / f"{asset_id}.webp"
+        source_path = args.source / f"{asset_id}.png"
+        destination_path = args.destination / f"{asset_id}.webp"
         with Image.open(source_path) as source:
             card = prepare_card(source)
             card.save(destination_path, "WEBP", quality=84, method=6)
             print(f"{asset_id}: {source.size} -> {CARD_SIZE} ({destination_path.stat().st_size // 1024} KiB)")
 
-    build_contact_sheet(CHARACTERS, Path("/private/tmp/gacha-characters-contact.jpg"), columns=5)
-    build_contact_sheet(OBJECTS, Path("/private/tmp/gacha-objects-contact.jpg"), columns=4)
+    build_contact_sheet(
+        CHARACTERS,
+        args.destination,
+        args.artifacts_dir / "gacha-characters-contact.jpg",
+        columns=5,
+    )
+    build_contact_sheet(
+        OBJECTS,
+        args.destination,
+        args.artifacts_dir / "gacha-objects-contact.jpg",
+        columns=4,
+    )
 
 
 if __name__ == "__main__":

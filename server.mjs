@@ -14,6 +14,7 @@ import {
 import { decodePullShareToken } from "./pull-share.js";
 import { createPullOgRenderer, PULL_OG_PATH } from "./pull-og.js";
 import { ITEMS } from "./strings.js";
+import { normalizeMeasurementId } from "./analytics.js";
 
 const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ASSETS_DIR = resolve(ROOT_DIR, "assets");
@@ -21,6 +22,7 @@ const INDEX_PATH = resolve(ROOT_DIR, "index.html");
 const STATIC_OG_PATH = resolve(ASSETS_DIR, "generated/share/astral-reverie-og.jpg");
 const pullOgRenderer = createPullOgRenderer();
 const PUBLIC_ROOT_FILES = new Set([
+  "analytics.js",
   "app.js",
   "cinematic-media.js",
   "cinematic-sfx.js",
@@ -47,7 +49,38 @@ const CONTENT_TYPES = new Map([
   [".webp", "image/webp"],
 ]);
 
-function applyCommonHeaders(response) {
+function contentSecurityPolicy(analyticsEnabled = false) {
+  const connectSources = ["'self'"];
+  const imageSources = ["'self'", "data:"];
+  const scriptSources = ["'self'"];
+  if (analyticsEnabled) {
+    connectSources.push(
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://*.googletagmanager.com",
+    );
+    imageSources.push("https://*.google-analytics.com", "https://*.googletagmanager.com");
+    scriptSources.push("https://www.googletagmanager.com/gtag/js");
+  }
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    `connect-src ${connectSources.join(" ")}`,
+    "font-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    `img-src ${imageSources.join(" ")}`,
+    "manifest-src 'self'",
+    "media-src 'self'",
+    "object-src 'none'",
+    `script-src ${scriptSources.join(" ")}`,
+    "style-src 'self' 'unsafe-inline'",
+  ].join("; ");
+}
+
+function applyCommonHeaders(response, runtimeConfig = {}) {
+  response.setHeader("Content-Security-Policy", contentSecurityPolicy(Boolean(runtimeConfig.gaMeasurementId)));
+  response.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()");
   response.setHeader("Referrer-Policy", "same-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
@@ -113,7 +146,8 @@ function firstForwardedValue(value) {
   return Array.isArray(value) ? value[0] : String(value || "").split(",")[0].trim();
 }
 
-function publicOrigin(request) {
+function publicOrigin(request, configuredOrigin) {
+  if (configuredOrigin) return configuredOrigin;
   const forwardedProtocol = firstForwardedValue(request.headers["x-forwarded-proto"]);
   const protocol = forwardedProtocol === "https" ? "https" : "http";
   const host = firstForwardedValue(request.headers["x-forwarded-host"]) || request.headers.host || "localhost";
@@ -160,15 +194,16 @@ function publicOgImageAlt(sharedPull) {
   return `Astral Reverie shared pull showing ${visibleNames}${remainder}.`;
 }
 
-async function sendIndex(request, response, method) {
+async function sendIndex(request, response, method, runtimeConfig) {
   const template = await readFile(INDEX_PATH, "utf8");
-  const origin = publicOrigin(request);
+  const origin = publicOrigin(request, runtimeConfig.publicOrigin);
   const sharedPull = requestedSharedPull(request, origin);
   const rendered = Buffer.from(template
     .replaceAll("__PUBLIC_ORIGIN__", origin)
     .replaceAll("__PUBLIC_PAGE_URL__", publicPageUrl(origin, sharedPull))
     .replaceAll("__PUBLIC_OG_IMAGE__", publicOgImageUrl(origin, sharedPull))
-    .replaceAll("__PUBLIC_OG_IMAGE_ALT__", escapeHtmlAttribute(publicOgImageAlt(sharedPull))));
+    .replaceAll("__PUBLIC_OG_IMAGE_ALT__", escapeHtmlAttribute(publicOgImageAlt(sharedPull)))
+    .replaceAll("__GA_MEASUREMENT_ID__", escapeHtmlAttribute(runtimeConfig.gaMeasurementId)));
   const encoding = preferredEncoding(request, ".html", false);
   const payload = encoding === "br"
     ? brotliCompressSync(rendered, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } })
@@ -249,8 +284,8 @@ function resolvePublicFile(pathname) {
   return candidate.startsWith(`${ASSETS_DIR}${sep}`) ? candidate : undefined;
 }
 
-async function handleRequest(request, response) {
-  applyCommonHeaders(response);
+async function handleRequest(request, response, runtimeConfig) {
+  applyCommonHeaders(response, runtimeConfig);
   const method = request.method || "GET";
   if (method !== "GET" && method !== "HEAD") {
     response.setHeader("Allow", "GET, HEAD");
@@ -281,7 +316,7 @@ async function handleRequest(request, response) {
   }
 
   if (filePath === INDEX_PATH) {
-    await sendIndex(request, response, method);
+    await sendIndex(request, response, method, runtimeConfig);
     return;
   }
 
@@ -376,12 +411,48 @@ async function handleRequest(request, response) {
   source.pipe(response);
 }
 
-export function createAppServer() {
+function normalizePublicOrigin(value) {
+  if (!value) return "";
+  let parsed;
+  try {
+    parsed = new URL(String(value));
+  } catch {
+    throw new Error("Invalid PUBLIC_ORIGIN configuration");
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol)
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== "/"
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new Error("Invalid PUBLIC_ORIGIN configuration");
+  }
+  return parsed.origin;
+}
+
+export function createAppServer(options = {}) {
+  const publicOrigin = normalizePublicOrigin(
+    Object.hasOwn(options, "publicOrigin") ? options.publicOrigin : process.env.PUBLIC_ORIGIN,
+  );
+  const nodeEnvironment = String(
+    Object.hasOwn(options, "nodeEnv") ? options.nodeEnv : process.env.NODE_ENV || "",
+  ).toLowerCase();
+  if (nodeEnvironment === "production" && !publicOrigin) {
+    throw new Error("PUBLIC_ORIGIN is required when NODE_ENV=production");
+  }
+  const runtimeConfig = Object.freeze({
+    gaMeasurementId: normalizeMeasurementId(
+      Object.hasOwn(options, "gaMeasurementId") ? options.gaMeasurementId : process.env.GA_MEASUREMENT_ID,
+    ),
+    publicOrigin,
+  });
   return createServer((request, response) => {
-    handleRequest(request, response).catch(error => {
+    handleRequest(request, response, runtimeConfig).catch(error => {
       console.error("Request failed", error);
       if (!response.headersSent) {
-        applyCommonHeaders(response);
+        applyCommonHeaders(response, runtimeConfig);
         sendText(response, 500, "Internal server error\n");
       } else {
         response.destroy(error);

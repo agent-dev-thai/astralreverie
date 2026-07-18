@@ -24,6 +24,7 @@
   <meta name="twitter:description" content="Cinematic pulls. Impossible luck. Zero real money.">
   <meta name="twitter:image" content="__PUBLIC_OG_IMAGE__">
   <meta name="twitter:image:alt" content="__PUBLIC_OG_IMAGE_ALT__">
+  <meta name="google-analytics-id" content="__GA_MEASUREMENT_ID__">
   <link rel="canonical" href="__PUBLIC_ORIGIN__/">
   <link rel="manifest" href="./assets/generated/share/site.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/generated/share/favicon-32.png">
@@ -270,10 +271,24 @@
 
     <div class="cinematic-stage cinematic-summary" id="cinematic-summary" hidden>
       <div class="summary-header">
-        <div><p class="eyebrow" id="summary-kicker" data-i18n="summaryKicker"></p><h2 data-i18n="summaryTitle"></h2></div>
+        <div><p class="eyebrow" id="summary-kicker" data-i18n="summaryKicker"></p><h2 id="summary-title" data-i18n="summaryTitle"></h2></div>
         <p class="summary-grade" id="summary-grade"></p>
       </div>
-      <div class="summary-grid" id="summary-grid"></div>
+      <div class="summary-carousel-shell">
+        <button class="summary-arrow summary-arrow-prev" type="button" data-action="summary-prev" aria-controls="summary-grid" data-i18n-aria="summaryPreviousAria">
+          <span aria-hidden="true">←</span>
+        </button>
+        <div class="summary-grid" id="summary-grid" role="region" aria-roledescription="carousel" aria-labelledby="summary-title" aria-describedby="summary-position" tabindex="0"></div>
+        <button class="summary-arrow summary-arrow-next" type="button" data-action="summary-next" aria-controls="summary-grid" data-i18n-aria="summaryNextAria">
+          <span aria-hidden="true">→</span>
+        </button>
+      </div>
+      <div class="summary-carousel-meta">
+        <span class="summary-position" id="summary-position"></span>
+        <div class="summary-pagination" id="summary-pagination" role="group"></div>
+        <span class="summary-hint" data-i18n="summaryCarouselHint"></span>
+        <span class="summary-announcement" id="summary-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
+      </div>
       <p class="summary-snark" id="summary-snark"></p>
       <div class="summary-actions">
         <button type="button" class="summary-share" data-action="share-facebook" data-i18n="shareResult"></button>

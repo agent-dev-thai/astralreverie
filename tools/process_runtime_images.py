@@ -3,7 +3,8 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 
-GENERATED = Path("assets/generated")
+ROOT = Path(__file__).resolve().parents[1]
+GENERATED = ROOT / "assets/generated"
 OPTIMIZED = GENERATED / "optimized"
 
 

@@ -32,7 +32,7 @@ The original WAV files remain outside the repository. Confirm that the selected 
 - Source stems: shared intake, C/R/SR/SSR/UR signatures, SR→SSR near-miss signature, and reveal flash tail.
 - Initial batch cost: 104 credits.
 - Targeted retries: shared intake, R, and near miss; 49 credits.
-- Total generation cost: 153 credits, leaving 57,860 credits at delivery time.
+- Total generation cost: 153 credits.
 - Exact prompts and durations: `tools/generate_elevenlabs_sfx.mjs`.
 - Delivery mixer: `tools/process_elevenlabs_sfx.mjs`.
 

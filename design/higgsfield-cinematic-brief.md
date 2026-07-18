@@ -41,7 +41,7 @@ The shipped clips were generated on 2026-07-17 with Higgsfield Cinema Studio 3.0
 | Landscape near miss | `084fb912-26b9-42d2-8bd1-479371424999` |
 | Portrait near miss | `f4e1be33-4ac3-4194-8bd0-e79b5e066951` |
 
-The production set used 240 credits. A four-credit standard-model canary was also evaluated and rejected, bringing the total generation spend to 244 credits and leaving 251.81 credits after delivery.
+The production set used 240 credits. A four-credit standard-model canary was also evaluated and rejected, bringing the total generation spend to 244 credits.
 
 ## Shared motion grammar
 

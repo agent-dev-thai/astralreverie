@@ -1,9 +1,12 @@
+import os
+import tempfile
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 
 BASE_URL = "http://127.0.0.1:4173/?seed=123&dev=1"
-ARTIFACTS = Path("/private/tmp")
+ARTIFACTS = Path(os.environ.get("QA_ARTIFACTS_DIR", tempfile.gettempdir()))
+ARTIFACTS.mkdir(parents=True, exist_ok=True)
 RARITY_CASES = (
     ("C", 7936, "c"),
     ("R", 2976, "r"),
@@ -26,9 +29,15 @@ def assert_no_overflow(page, label):
 
 
 def assert_images_loaded(page):
+    page.wait_for_function(
+        """() => [...document.images]
+          .filter(image => image.hasAttribute('src') && image.getClientRects().length > 0)
+          .every(image => image.complete)""",
+        timeout=5000,
+    )
     failures = page.evaluate(
         """() => [...document.images]
-          .filter(image => image.hasAttribute('src') && (!image.complete || image.naturalWidth === 0))
+          .filter(image => image.hasAttribute('src') && image.getClientRects().length > 0 && (!image.complete || image.naturalWidth === 0))
           .map(image => image.getAttribute('src'))"""
     )
     assert not failures, f"Images failed to load: {failures}"
@@ -140,6 +149,24 @@ with sync_playwright() as playwright:
     assert len(core_animations) == 5, f"Core animations are not unique: {core_animations}"
     assert len(reveal_animations) == 5, f"Reveal animations are not unique: {reveal_animations}"
 
+    page.goto("http://127.0.0.1:4173/?seed=104&dev=1")
+    page.wait_for_load_state("networkidle")
+    page.locator('.pull-console [data-action="pull-ten"]').click()
+    expect(page.locator("#cinematic-buildup")).to_have_attribute("data-rarity", "ur")
+    expect(page.locator("#build-rarity")).to_have_text("UR")
+    expect(page.locator("#warp-video")).to_have_attribute(
+        "src", "./assets/generated/cinematics/landscape/warp-ur.mp4"
+    )
+    expect_cinematic_sfx(page, "buildup", "ur")
+    rarest_first_state = page.evaluate("window.__ASTRAL_DEBUG__.getState()")
+    assert rarest_first_state["buildBest"] == "UR"
+    assert rarest_first_state["results"][0]["rarity"] == "UR"
+    assert rarest_first_state["results"][1]["rarity"] == "SSR"
+    page.locator('[data-action="skip-build"]').click()
+    expect(page.locator("#cinematic-reveal")).to_have_attribute("data-rarity", "ur")
+    expect(page.locator("#reveal-tier")).to_have_text("UR")
+    expect_cinematic_sfx(page, "reveal", "ur")
+
     page.goto("http://127.0.0.1:4173/?seed=101&dev=1")
     page.wait_for_load_state("networkidle")
     page.locator('.pull-console [data-action="pull-one"]').click()
@@ -175,9 +202,12 @@ with sync_playwright() as playwright:
 
     page.goto(shared_card_url)
     page.wait_for_load_state("networkidle")
-    expect(page.locator("#cinematic-summary")).to_have_class("cinematic-stage cinematic-summary is-single")
+    expect(page.locator("#cinematic-summary")).to_have_class("cinematic-stage cinematic-summary is-single is-shared")
     expect(page.locator(".summary-card")).to_have_count(1)
     expect(page.locator(".summary-name")).to_have_text(revealed_card["name"])
+    expect(page.locator(".summary-arrow-prev")).to_be_hidden()
+    expect(page.locator(".summary-arrow-next")).to_be_hidden()
+    expect(page.locator("#summary-pagination")).to_be_hidden()
     expect(page.locator(".summary-share")).to_have_text("Share card")
     expect(page.locator('meta[property="og:url"]')).to_have_attribute("content", shared_card_url)
     expect_pull_og(page, shared_card_url, "astral-og-shared-card.jpg")
@@ -229,6 +259,8 @@ with sync_playwright() as playwright:
     expect(page).to_have_title("Shared pull — Astral Reverie")
     assert page.locator(".summary-card").count() == 10
     assert page.locator(".summary-name").all_inner_texts() == shared_result_names
+    expect(page.locator(".summary-card.is-active")).to_have_count(1)
+    expect(page.locator(".summary-marker")).to_have_count(10)
     expect(page.locator(".summary-share")).to_have_text("Share ×10 pull")
     expect(page.locator('meta[property="og:url"]')).to_have_attribute("content", shared_page_url)
     expect(page.locator('link[rel="canonical"]')).to_have_attribute("href", "http://127.0.0.1:4173/")
@@ -237,9 +269,43 @@ with sync_playwright() as playwright:
     expect(page.locator(".summary-share")).to_be_focused()
     page.screenshot(path=str(ARTIFACTS / "astral-shared-summary.png"), full_page=True)
     expect(page.locator("#seed-label")).to_have_text("Shared result · local progress unchanged")
+    shared_names_before_carousel = page.locator(".summary-name").all_inner_texts()
+    shared_url_before_carousel = page.url
+    page.locator("#summary-grid").focus()
+    page.keyboard.press("Home")
+    expect(page.locator("#summary-position")).to_have_text("01 / 10")
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#summary-position")).to_have_text("02 / 10")
+    expect(page.locator('.summary-card[data-summary-index="1"]')).to_have_attribute("aria-current", "true")
+    expect(page.locator("#summary-announcement")).to_contain_text(shared_names_before_carousel[1])
+    page.keyboard.press("ArrowLeft")
+    expect(page.locator("#summary-position")).to_have_text("01 / 10")
+    assert page.locator(".summary-name").all_inner_texts() == shared_names_before_carousel
+    assert page.url == shared_url_before_carousel
     page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_timeout(400)
     assert_no_overflow(page, "mobile shared summary")
+    carousel_box = page.locator("#summary-grid").bounding_box()
+    active_card_box = page.locator(".summary-card.is-active").bounding_box()
+    assert carousel_box and active_card_box
+    assert active_card_box["x"] >= carousel_box["x"] - 1
+    assert active_card_box["x"] + active_card_box["width"] <= carousel_box["x"] + carousel_box["width"] + 1
+    for selector in (".summary-arrow-prev", ".summary-arrow-next"):
+        target_box = page.locator(selector).bounding_box()
+        assert target_box and target_box["height"] >= 44, f"Summary target is under 44px: {selector}={target_box}"
     page.screenshot(path=str(ARTIFACTS / "astral-shared-summary-mobile.png"), full_page=True)
+    page.set_viewport_size({"width": 320, "height": 700})
+    page.locator("#summary-grid").focus()
+    page.keyboard.press("End")
+    expect(page.locator("#summary-position")).to_have_text("10 / 10")
+    page.wait_for_timeout(1200)
+    assert_no_overflow(page, "compact shared summary")
+    pagination_box = page.locator("#summary-pagination").bounding_box()
+    active_marker_box = page.locator(".summary-marker.is-active").bounding_box()
+    assert pagination_box and active_marker_box
+    assert active_marker_box["x"] >= pagination_box["x"] - 1
+    assert active_marker_box["x"] + active_marker_box["width"] <= pagination_box["x"] + pagination_box["width"] + 1
+    page.screenshot(path=str(ARTIFACTS / "astral-shared-summary-compact.png"), full_page=True)
     page.set_viewport_size({"width": 1440, "height": 1000})
 
     page.evaluate("""window.open = url => {
@@ -317,9 +383,42 @@ with sync_playwright() as playwright:
     )
     expect(page.locator(".summary-card")).to_have_count(10)
     expect(page.locator(".summary-card img")).to_have_count(10)
+    expect(page.locator(".summary-card.is-active")).to_have_count(1)
+    expect(page.locator(".summary-marker")).to_have_count(10)
+    expected_featured = next(
+        index for index, result in enumerate(summary_state["results"])
+        if result["rarity"] == summary_state["buildBest"]
+    )
+    expect(page.locator(".summary-card.is-active")).to_have_attribute(
+        "data-summary-index", str(expected_featured)
+    )
+    expect(page.locator("#summary-position")).to_have_text(
+        f"{expected_featured + 1:02d} / 10"
+    )
+    summary_ids_before_carousel = [result["id"] for result in summary_state["results"]]
     page.wait_for_timeout(1100)
     assert_images_loaded(page)
     page.screenshot(path=str(ARTIFACTS / "astral-summary.png"), full_page=True)
+    if expected_featured < 9:
+        page.locator(".summary-arrow-next").click()
+        expect(page.locator("#summary-position")).to_have_text(
+            f"{expected_featured + 2:02d} / 10"
+        )
+    else:
+        page.locator(".summary-arrow-prev").click()
+        expect(page.locator("#summary-position")).to_have_text("09 / 10")
+    page.locator("#summary-grid").focus()
+    page.keyboard.press("Home")
+    expect(page.locator("#summary-position")).to_have_text("01 / 10")
+    for _ in range(9):
+        page.keyboard.press("ArrowRight")
+    expect(page.locator("#summary-position")).to_have_text("10 / 10")
+    page.wait_for_timeout(1200)
+    expect(page.locator("#summary-position")).to_have_text("10 / 10")
+    expect(page.locator('.summary-card[data-summary-index="9"]')).to_have_attribute("aria-current", "true")
+    assert page.evaluate(
+        "window.__ASTRAL_DEBUG__.getState().results.map(result => result.id)"
+    ) == summary_ids_before_carousel
     page.locator('[data-action="collect"]').click()
     expect(page.locator("#cinematic")).to_be_hidden()
 
@@ -369,6 +468,22 @@ with sync_playwright() as playwright:
     expect(page.locator("#view-banner")).to_be_visible()
     page.wait_for_timeout(950)
     assert_no_overflow(page, "mobile banner")
+    feature_bounds = page.evaluate(
+        """() => {
+          const poster = document.querySelector('.feature-poster').getBoundingClientRect();
+          const character = document.querySelector('#feature-character').getBoundingClientRect();
+          return {
+            poster: { left: poster.left, top: poster.top, right: poster.right, bottom: poster.bottom },
+            character: { left: character.left, top: character.top, right: character.right, bottom: character.bottom },
+          };
+        }"""
+    )
+    poster_bounds = feature_bounds["poster"]
+    character_bounds = feature_bounds["character"]
+    assert character_bounds["left"] >= poster_bounds["left"] - 1, feature_bounds
+    assert character_bounds["top"] >= poster_bounds["top"] - 1, feature_bounds
+    assert character_bounds["right"] <= poster_bounds["right"] + 1, feature_bounds
+    assert character_bounds["bottom"] <= poster_bounds["bottom"] + 1, feature_bounds
     expect(page.locator(".view-tabs")).to_be_visible()
     for selector in (
         '[data-action="share-facebook"]',

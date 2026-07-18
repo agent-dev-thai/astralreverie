@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 
 import { createAppServer } from "../server.mjs";
 
-const server = createAppServer();
+const server = createAppServer({ gaMeasurementId: "", publicOrigin: "" });
 let baseUrl;
 
 before(async () => {
@@ -28,7 +28,70 @@ test("serves the app shell", async () => {
   assert.equal(response.headers.get("content-encoding"), "br");
   const html = await response.text();
   assert.match(html, /id="app-shell"/);
+  assert.match(html, /id="summary-grid" role="region" aria-roledescription="carousel"/);
+  assert.match(html, /data-action="summary-prev"/);
+  assert.match(html, /data-action="summary-next"/);
+  assert.match(html, /id="summary-announcement" role="status" aria-live="polite"/);
+  assert.match(html, /name="google-analytics-id" content=""/);
   assert.match(html, /<script type="module" src="\.\/app\.js"><\/script>/);
+  assert.doesNotMatch(html, /__GA_MEASUREMENT_ID__/);
+  assert.doesNotMatch(response.headers.get("content-security-policy"), /google(?:tagmanager|-analytics)\.com/);
+  assert.match(response.headers.get("permissions-policy"), /payment=\(\)/);
+});
+
+test("injects validated analytics and deployment origin configuration", async () => {
+  const configuredServer = createAppServer({
+    gaMeasurementId: "g-test123456",
+    publicOrigin: "https://gacha.example",
+  });
+  await new Promise((resolve, reject) => {
+    configuredServer.once("error", reject);
+    configuredServer.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = configuredServer.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/`, {
+      headers: {
+        "X-Forwarded-Host": "attacker.example",
+        "X-Forwarded-Proto": "https",
+      },
+    });
+    const html = await response.text();
+    assert.match(html, /name="google-analytics-id" content="G-TEST123456"/);
+    assert.match(html, /rel="canonical" href="https:\/\/gacha\.example\/"/);
+    assert.doesNotMatch(html, /attacker\.example/);
+    assert.match(
+      response.headers.get("content-security-policy"),
+      /script-src 'self' https:\/\/www\.googletagmanager\.com\/gtag\/js/,
+    );
+  } finally {
+    await new Promise((resolve, reject) => {
+      configuredServer.close(error => error ? reject(error) : resolve());
+    });
+  }
+});
+
+test("rejects invalid configured public origins", () => {
+  assert.throws(
+    () => createAppServer({ publicOrigin: "https://gacha.example/not-root" }),
+    /Invalid PUBLIC_ORIGIN/,
+  );
+  assert.throws(
+    () => createAppServer({ publicOrigin: "javascript:alert(1)" }),
+    /Invalid PUBLIC_ORIGIN/,
+  );
+  assert.throws(
+    () => createAppServer({ publicOrigin: "https://secret:password@gacha.example" }),
+    error => {
+      assert.match(error.message, /Invalid PUBLIC_ORIGIN configuration/);
+      assert.doesNotMatch(error.message, /secret|password/);
+      return true;
+    },
+  );
+  assert.throws(
+    () => createAppServer({ nodeEnv: "production", publicOrigin: "" }),
+    /PUBLIC_ORIGIN is required when NODE_ENV=production/,
+  );
 });
 
 test("renders absolute social metadata from the deployment origin", async () => {
@@ -137,6 +200,11 @@ test("serves the vendored motion runtime, production music, and cinematics", asy
   const pullShare = await fetch(`${baseUrl}/pull-share.js`);
   assert.equal(pullShare.status, 200);
   assert.match(await pullShare.text(), /PULL_SHARE_VERSION/);
+
+  const analytics = await fetch(`${baseUrl}/analytics.js`);
+  assert.equal(analytics.status, 200);
+  assert.match(analytics.headers.get("content-type"), /^text\/javascript/);
+  assert.match(await analytics.text(), /normalizeMeasurementId/);
 });
 
 test("supports compressed text responses, cache validation, and media ranges", async () => {
