@@ -11,7 +11,7 @@
 - [x] no common credentials, private keys, or tracked `.env` files found
 - [x] no known package vulnerabilities found by `pnpm audit`
 - [x] production mode requires a validated `PUBLIC_ORIGIN`
-- [x] analytics is optional, deployer-owned, query-sanitized, and privacy-limited
+- [x] analytics is optional, deployer-owned, query-sanitized, and advertising-disabled
 
 ## Owner decisions before changing visibility
 
@@ -23,4 +23,5 @@
 - [ ] Confirm the provider job IDs and per-generation costs in the provenance notes are intended to be public.
 - [ ] Enable GitHub private vulnerability reporting, secret scanning, Dependabot alerts, and default-branch protection.
 - [ ] Set `PUBLIC_ORIGIN` on the deployment; set `GA_MEASUREMENT_ID` only if analytics should be enabled.
+- [ ] Confirm default GA first-party analytics cookies are appropriate for the target audience and jurisdictions, or add opt-in consent before enabling analytics.
 - [ ] Replace `PRIVACY.md` with the deployment operator's identity, contact method, and jurisdiction-appropriate notice.

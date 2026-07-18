@@ -15,7 +15,7 @@ There is no account, checkout, payment API, or item of value. All simulator prog
 - read-only shared result links with exact-card Open Graph previews;
 - responsive mobile/desktop layouts, keyboard controls, reduced-motion support, and audio fallback;
 - a small allowlisted Node server with compression, byte ranges, cache validation, health checks, and security headers;
-- optional, deployer-owned Google Analytics 4 with privacy-limited event data.
+- optional, deployer-owned Google Analytics 4 with bounded, advertising-disabled event data.
 
 ## Quick start
 
@@ -59,12 +59,12 @@ The server does not load `.env` files automatically. Use your shell, process man
 Analytics is off by default, so forks never send data to the original maintainer's property. When configured, the app:
 
 - skips analytics in `?dev=1` mode and when Do Not Track or Global Privacy Control is enabled;
-- defaults Consent Mode v2 storage and advertising signals to denied;
+- grants analytics storage for normal GA4 user/session and Realtime reporting while keeping advertising storage, advertising user data, and personalization denied;
 - strips all query parameters from recorded page locations;
 - avoids seeds, card identifiers, shared tokens, balances, and fictional spend values;
 - records page views plus bounded `screen_view`, `gacha_pull`, `simulated_top_up`, `shared_result_viewed`, and `share` events.
 
-Read [PRIVACY.md](PRIVACY.md) before enabling analytics. Deployers remain responsible for their own notice, consent flow, retention settings, and regional requirements.
+When enabled, standard GA4 first-party analytics cookies may be written. This repository does not ship an opt-in consent banner. Read [PRIVACY.md](PRIVACY.md) before enabling analytics; deployers remain responsible for their own notice, consent flow, retention settings, and regional requirements.
 
 ## Verification
 

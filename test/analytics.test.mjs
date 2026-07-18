@@ -37,7 +37,7 @@ test("normalizes only GA4 measurement IDs", () => {
   assert.equal(normalizeMeasurementId("G-"), "");
 });
 
-test("loads GA4 once with denied consent and a query-free page view", () => {
+test("loads standard GA4 analytics with advertising denied and a query-free page view", () => {
   const browser = fakeBrowser("G-TEST123456");
   const client = createAnalyticsClient(browser);
   assert.equal(client.initialize(), true);
@@ -50,7 +50,13 @@ test("loads GA4 once with denied consent and a query-free page view", () => {
     ad_storage: "denied",
     ad_user_data: "denied",
     ad_personalization: "denied",
-    analytics_storage: "denied",
+    analytics_storage: "granted",
+  }]);
+  const config = queued.find(command => command[0] === "config");
+  assert.deepEqual(config, ["config", "G-TEST123456", {
+    allow_ad_personalization_signals: false,
+    allow_google_signals: false,
+    send_page_view: false,
   }]);
   const pageView = queued.find(command => command[0] === "event" && command[1] === "page_view");
   assert.equal(pageView[2].page_location, "https://gacha.example/");
